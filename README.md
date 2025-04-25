@@ -1,19 +1,19 @@
 # Mini C Compiler
 
-Un petit compilateur en Python qui traite un sous-ensemble minimal du langage C.
+A small compiler written in Python that handles a minimal subset of the C language.
 
-## Fonctionnalités supportées
+## Supported Features
 
-Actuellement, ce compilateur peut :
+Currently, this compiler can:
 
-- Lire un fichier source `.c`
-- L'analyser lexicalement et syntaxiquement
-- Générer du code assembleur (x86-64 / ARM selon l'architecture)
-- Compiler le code assembleur en un exécutable avec `gcc`
+- Read a `.c` source file
+- Perform lexical and syntactic analysis
+- Generate assembly code (x86-64 / ARM depending on the architecture)
+- Compile the assembly code into an executable using `gcc`
 
-## Syntaxe C supportée
+## Supported C Syntax
 
-Le compilateur prend en charge **un seul type de programme** :
+The compiler supports **only one type of program**:
 
 ```c
 int main(void) {
