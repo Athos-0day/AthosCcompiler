@@ -20,9 +20,11 @@ std::string Register::toString() const {
 }
 
 std::string Register::toASM() const {
-    std::string regName = regToString(reg);
-    for (auto& c : regName) c = static_cast<char>(std::tolower(c));
-    return "%" + regName;
+    switch (getReg()) {
+        case Reg::AX: return "%eax";
+        case Reg::R10: return "%r10d";
+    }
+    return "%unk";
 }
 
 // --- Pseudo ---
@@ -55,7 +57,7 @@ std::string Mov::toString() const {
 }
 
 std::string Mov::toASM() const {
-    return "movq " + src->toASM() + ", " + dst->toASM();
+    return "movl " + src->toASM() + ", " + dst->toASM();
 }
 
 // --- Unary ---
@@ -71,9 +73,9 @@ std::string Unary::toString() const {
 std::string Unary::toASM() const {
     switch (unary_operator) {
         case UnaryOperator::NEG:
-            return "negq " + dst->toASM();
+            return "negl " + dst->toASM();
         case UnaryOperator::NOT:
-            return "notq " + dst->toASM();
+            return "notl " + dst->toASM();
         default:
             return "UNKNOWN_UNARY_OP";
     }
@@ -98,7 +100,10 @@ std::string Ret::toString() const {
 }
 
 std::string Ret::toASM() const {
-    return "ret";
+    std::string codeRet = "movq %rbp, %rsp\n";
+    codeRet += std::string("  ") + "popq %rbp\n";
+    codeRet += std::string("  ") + "ret";
+    return codeRet;
 }
 
 // --- FunctionDefinition ---
@@ -126,7 +131,9 @@ std::string FunctionDefinition::toString() const {
 }
 
 std::string FunctionDefinition::toASM() const {
-    std::string asmCode = ".globl " + name + "\n" + name + ":\n";
+    std::string asmCode = ".globl _" + name + "\n_" + name + ":\n";
+    asmCode += std::string("  ") + "pushq %rbp\n";
+    asmCode += std::string("  ") + "movq %rsp, %rbp\n";
     for (const auto& instr : instructions) {
         asmCode += "  " + instr->toASM() + "\n";
     }
@@ -224,6 +231,116 @@ ASDLProgram convertTackyToASDL(const tacky::Program& tackyProgram) {
     );
 
     return ASDLProgram(std::move(funcDef));
+}
+
+FunctionDefinition* ASDLProgram::getFunctionDefinition() const {
+    return functionDefinition.get();
+}
+
+
+int replacePseudosWithStack(ASDLProgram& program) {
+    int stackOffset = -4;
+    std::unordered_map<std::string, int> pseudoOffsets;
+
+    auto& instructions = program.getFunctionDefinition()->getInstructions();
+
+    for (auto& instr : instructions) {
+        // Handle Unary instructions
+        if (auto unary = dynamic_cast<Unary*>(instr.get())) {
+            const Operand* dstOp = unary->getDst();
+            if (auto pseudo = dynamic_cast<const Pseudo*>(dstOp)) {
+                const std::string& name = pseudo->getIdentifier();
+                if (!pseudoOffsets.count(name)) {
+                    pseudoOffsets[name] = stackOffset;
+                    stackOffset -= 4;
+                }
+                unary->setDst(std::make_unique<Stack>(pseudoOffsets[name]));
+            }
+        }
+
+        // Handle Mov instructions
+        if (auto mov = dynamic_cast<Mov*>(instr.get())) {
+            Operand* dstOp = mov->getDst();
+            if (auto pseudo = dynamic_cast<Pseudo*>(dstOp)) {
+                const std::string& name = pseudo->getIdentifier();
+                if (!pseudoOffsets.count(name)) {
+                    pseudoOffsets[name] = stackOffset;
+                    stackOffset -= 4;
+                }
+                mov->setDst(std::make_unique<Stack>(pseudoOffsets[name]));
+            }
+
+            Operand* srcOp = mov->getSrc();
+            if (auto pseudo = dynamic_cast<Pseudo*>(srcOp)) {
+                const std::string& name = pseudo->getIdentifier();
+                if (!pseudoOffsets.count(name)) {
+                    pseudoOffsets[name] = stackOffset;
+                    stackOffset -= 4;
+                }
+                mov->setSrc(std::make_unique<Stack>(pseudoOffsets[name]));
+            }
+        }
+
+        // TODO: handle other instruction types as needed
+    }
+
+    return stackOffset;
+}
+
+std::vector<std::unique_ptr<Instruction>>& FunctionDefinition::getInstructions() {
+    return instructions;
+}
+
+
+void insertAllocateStack(ASDLProgram& program, int stackSize) {
+    FunctionDefinition* funcDef = program.getFunctionDefinition();
+    auto& instructions = funcDef->getInstructions();
+
+    auto allocate = std::make_unique<AllocateStack>(-stackSize);
+    instructions.insert(instructions.begin(), std::move(allocate));
+}
+
+void legalizeMovMemoryToMemory(ASDLProgram& program) {
+    // Get the list of instructions from the program
+    auto& instructions = program.getFunctionDefinition()->getInstructions();
+
+    // This will hold the updated list of instructions
+    std::vector<std::unique_ptr<Instruction>> legalizedInstructions;
+
+    for (auto& instr : instructions) {
+        // Process only Mov instructions
+        if (auto mov = dynamic_cast<Mov*>(instr.get())) {
+            Operand* src = mov->getSrc();
+            Operand* dst = mov->getDst();
+
+            bool srcIsMemory = dynamic_cast<Stack*>(src) != nullptr;
+            bool dstIsMemory = dynamic_cast<Stack*>(dst) != nullptr;
+
+            // If both operands are memory (e.g., movl -4(%rbp), -8(%rbp)), it's invalid in x86
+            if (srcIsMemory && dstIsMemory) {
+                // Insert: movl src, %r10d
+                legalizedInstructions.push_back(std::make_unique<Mov>(
+                    std::unique_ptr<Operand>(mov->cloneSrc()),
+                    std::make_unique<Register>(Reg::R10)
+                ));
+
+                // Insert: movl %r10d, dst
+                legalizedInstructions.push_back(std::make_unique<Mov>(
+                    std::make_unique<Register>(Reg::R10),
+                    std::unique_ptr<Operand>(mov->cloneDst())
+                ));
+            } else {
+                // Instruction is valid, copy as-is
+                legalizedInstructions.push_back(std::move(instr));
+            }
+        } else {
+            // Non-Mov instruction, copy as-is
+            legalizedInstructions.push_back(std::move(instr));
+        }
+    }
+
+    // Replace original instruction list with the updated one
+    instructions = std::move(legalizedInstructions);
 }
 
 

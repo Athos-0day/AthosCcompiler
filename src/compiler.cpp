@@ -77,13 +77,18 @@ int main(int argc, char* argv[]) {
             Lowerer lowerer;
             auto tackyProgram = lowerer.lower(ast.get());
 
-            ASDLProgram asdlProgram = convertTackyToASDL(*tackyProgram); 
+            ASDLProgram asdlProgram = convertTackyToASDL(*tackyProgram);
+            int stackOffset = replacePseudosWithStack(asdlProgram);  
+            insertAllocateStack(asdlProgram,stackOffset);
+            legalizeMovMemoryToMemory(asdlProgram);
 
             std::cout << "\nGenerated ASDL:\n";
             std::cout << asdlProgram.toString() << "\n";
 
             std::cout << "\nGenerated Assembly:\n";
             std::cout << asdlProgram.toASM() << "\n";
+
+            std::cout << "stackoffset value = " << stackOffset << std::endl;
 
         } else if (mode == "--compile") {
             std::cout << "Full compilation of: " << filepath << "\n";
@@ -94,7 +99,10 @@ int main(int argc, char* argv[]) {
             Lowerer lowerer;
             auto tackyProgram = lowerer.lower(ast.get());
 
-            ASDLProgram asdlProgram = convertTackyToASDL(*tackyProgram); 
+            ASDLProgram asdlProgram = convertTackyToASDL(*tackyProgram);
+            int stackOffset = replacePseudosWithStack(asdlProgram);
+            insertAllocateStack(asdlProgram,stackOffset); 
+            legalizeMovMemoryToMemory(asdlProgram);
 
             const std::string asm_filename = "out.s";
             std::ofstream ofs(asm_filename);
@@ -105,15 +113,7 @@ int main(int argc, char* argv[]) {
 
             std::string asmCode = asdlProgram.toASM();
 
-            auto posColon = asmCode.find(':');
-            if (posColon != std::string::npos) {
-                std::string label = asmCode.substr(0, posColon);
-                std::string rest = asmCode.substr(posColon + 1);
-                ofs << ".globl _" << label << "\n";
-                ofs << "_" << label << ":" << rest;
-            } else {
-                ofs << asmCode;
-            }
+            ofs << asmCode;
             ofs.close();
 
             std::string exec_name = filepath;
