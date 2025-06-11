@@ -13,6 +13,7 @@
  * - Single-line comments (//...)
  * - Multi-line comments 
  * - Punctuation: parentheses, braces, semicolon
+ * - Unary Operator: complement, negation, decrement
  */
 
 #include <iostream>
@@ -42,7 +43,10 @@ enum class Token {
     SKIP,           ///< Whitespace characters (spaces, tabs, newlines)
     COMMENT,        ///< Single-line comment (//...)
     ML_COMMENT,     ///< Multi-line comment (/* ... */)
-    MISMATCH        ///< Invalid or unrecognized token
+    MISMATCH,       ///< Invalid or unrecognized token
+    COMPLEMENT,     ///< Complement operator '~'
+    NEGATION,       ///< Negation operator '-'
+    DECREMENT       ///< Decrement operator '--'
 };
 
 /**
@@ -80,6 +84,9 @@ std::string tokenToString(Token t) {
         case Token::SKIP: return "SKIP";
         case Token::COMMENT: return "COMMENT";
         case Token::ML_COMMENT: return "ML_COMMENT";
+        case Token::COMPLEMENT: return "COMPLEMENT";
+        case Token::NEGATION: return "NEGATION";
+        case Token::DECREMENT: return "DECREMENT";
         default: return "MISMATCH";
     }
 }
@@ -102,6 +109,9 @@ Token wordToToken(const std::string& word) {
     if (word == "{")        return Token::OBRACE;
     if (word == "}")        return Token::CBRACE;
     if (word == ";")        return Token::SEMICOLON;
+    if (word == "~")        return Token::COMPLEMENT;
+    if (word == "--")       return Token::DECREMENT;
+    if (word == "-")        return Token::NEGATION;
 
     if (std::regex_match(word, std::regex(R"(\d+)"))) 
         return Token::CONSTANT;
@@ -161,7 +171,14 @@ std::vector<Lex> lexer(const std::string& filename, bool verbose = true) {
     std::vector<std::pair<std::regex, Token>> patterns = {
         {std::regex(R"(^//[^\n]*)"), Token::COMMENT},
         {std::regex(R"(^/\*([^*]|\*+[^*/])*\*+/)"), Token::ML_COMMENT},
-        {std::regex(R"(^[(){};])"), Token::MISMATCH}, // refined later by wordToToken
+        {std::regex(R"(^\()"), Token::OPARENTHESIS},
+        {std::regex(R"(^\))"), Token::CPARENTHESIS},
+        {std::regex(R"(^\{)"), Token::OBRACE},
+        {std::regex(R"(^\})"), Token::CBRACE},
+        {std::regex(R"(^;)"), Token::SEMICOLON},
+        {std::regex(R"(^~)"), Token::COMPLEMENT},
+        {std::regex(R"(^--)"), Token::DECREMENT},
+        {std::regex(R"(^-)"), Token::NEGATION},
         {std::regex(R"(^\d+[a-zA-Z_]\w*)"), Token::MISMATCH}, // invalid token like 123abc
         {std::regex(R"(^[a-zA-Z_]\w*)"), Token::IDENTIFIER},
         {std::regex(R"(^\d+)"), Token::CONSTANT},

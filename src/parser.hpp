@@ -8,7 +8,7 @@
  *  ‹program›   ::= ‹function›
  *  ‹function›  ::= "int" ‹identifier› "(" "void" ")" "{" ‹statement› "}"
  *  ‹statement› ::= "return" ‹exp› ";"
- *  ‹exp›       ::= <int>
+ *  ‹exp›       ::= <int> | <unop> <exp> | "(" <exp> ")"
  *
  * It supports verbose logging for debugging and throws detailed exceptions
  * on syntax errors including line information.

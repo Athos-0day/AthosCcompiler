@@ -88,11 +88,40 @@ std::unique_ptr<ReturnStatement> Parser::parseStatement() {
 std::unique_ptr<Expression> Parser::parseExpression() {
     log("Parsing expression");
     Lex currentToken = peek();
-    if (currentToken.token != Token::CONSTANT) {
-        error("Expected integer constant in expression", currentToken);
+
+    // Case: <int>
+    if (currentToken.token == Token::CONSTANT) {
+        advance();
+        int value = std::stoi(currentToken.word);
+        log("Parsed integer literal: " + std::to_string(value));
+        return std::make_unique<Expression>(value);
     }
-    advance();
-    int value = std::stoi(currentToken.word);
-    log("Parsed expression with value " + std::to_string(value));
-    return std::make_unique<Expression>(value);
+
+    // Case: <unop> <exp>
+    else if (currentToken.token == Token::COMPLEMENT || currentToken.token == Token::NEGATION) {
+        Token unop = currentToken.token;
+        advance();
+        std::unique_ptr<Expression> operand = parseExpression(); // recursive
+        log("Parsed unary operator: " + tokenToString(unop));
+        return std::make_unique<Expression>(unop, std::move(operand));
+    }
+
+    // Case: "(" <exp> ")"
+    else if (currentToken.token == Token::OPARENTHESIS) {
+        advance(); // consume '('
+        std::unique_ptr<Expression> inner = parseExpression();
+
+        if (peek().token != Token::CPARENTHESIS) {
+            throw std::runtime_error("Expected ')' after expression");
+        }
+        advance(); // consume ')'
+        log("Parsed parenthesized expression");
+        return inner;
+    }
+
+    // Error: unexpected token
+    else {
+        throw std::runtime_error("Unexpected token in expression: " + currentToken.word);
+    }
 }
+

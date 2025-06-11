@@ -3,6 +3,7 @@
 
 #include <string>
 #include <memory>
+#include "lexer.hpp"
 
 /**
  * @brief Base class for all nodes in the Abstract Syntax Tree (AST).
@@ -16,20 +17,35 @@ public:
 };
 
 /**
- * @brief Represents an expression node holding an integer constant.
+ * @brief Represents an expression node.
  * 
- * This corresponds to the grammar rule: ‹exp› ::= <int>
+ * Supports:
+ * - Integer constant: ‹exp› ::= <int>
+ * - Unary expression: ‹exp› ::= <unop> ‹exp›
+ * - Parenthesized expression: ‹exp› ::= "(" ‹exp› ")"
  */
 class Expression : public ASTNode {
 public:
-    int value; ///< The integer constant value
+    // Variant data
+    int value; ///< Used only if this is a constant
+    Token op; ///< Used only if this is a unary expression
+    std::unique_ptr<Expression> operand; ///< Operand of unary expression
 
     /**
-     * @brief Constructs an Expression node.
+     * @brief Constructs an integer literal expression.
      * 
-     * @param v The integer constant value.
+     * @param v The integer value.
      */
-    Expression(int v) : value(v) {}
+    Expression(int v) : value(v), op(Token::MISMATCH), operand(nullptr) {}
+
+    /**
+     * @brief Constructs a unary expression.
+     * 
+     * @param unaryOp The unary operator (e.g., NEGATION, COMPLEMENT).
+     * @param expr The operand expression.
+     */
+    Expression(Token unaryOp, std::unique_ptr<Expression> expr)
+        : value(0), op(unaryOp), operand(std::move(expr)) {}
 };
 
 /**
