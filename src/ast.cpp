@@ -3,6 +3,34 @@
 #include "lexer.hpp"
 
 /**
+ * @brief Enum class for expression type.
+ */
+enum class ExpressionType {
+    CONSTANT,
+    UNARY,
+    BINARY
+};
+
+/**
+ * @brief Enum class for unary operator.
+ */
+enum class UnaryOpast {
+    COMPLEMENT,
+    NEGATE
+};
+
+/**
+ * @brief Enum class for binary operator.
+ */
+enum class BinaryOpast {
+    ADD,
+    SUBTRACT,
+    MULTIPLY,
+    DIVIDE,
+    REMAINDER
+};
+
+/**
  * @brief Base class for all nodes in the Abstract Syntax Tree (AST).
  */
 class ASTNode {
@@ -14,31 +42,35 @@ public:
 };
 
 /**
- * @brief Represents an expression node holding an integer constant.
- * 
- * This corresponds to the grammar rule: ‹exp› ::= <int>
+ * @brief Represents an expression node.
  */
 class Expression : public ASTNode {
 public:
-    int value; ///< Used only if this is a constant
-    Token op; ///< Used only if this is a unary expression
-    std::unique_ptr<Expression> operand; ///< Operand of unary expression
+    ExpressionType type;
 
-    /**
-     * @brief Constructs an integer literal expression.
-     * 
-     * @param v The integer value.
-     */
-    Expression(int v) : value(v), op(Token::MISMATCH), operand(nullptr) {}
+    // For constants
+    int value = 0;
 
-    /**
-     * @brief Constructs a unary expression.
-     * 
-     * @param unaryOp The unary operator (e.g., NEGATION, COMPLEMENT).
-     * @param expr The operand expression.
-     */
-    Expression(Token unaryOp, std::unique_ptr<Expression> expr)
-        : value(0), op(unaryOp), operand(std::move(expr)) {}
+    // For unary expressions
+    UnaryOpast un_op;
+    std::unique_ptr<Expression> operand;
+
+    // For binary expressions
+    BinaryOpast bin_op;
+    std::unique_ptr<Expression> operand1;
+    std::unique_ptr<Expression> operand2;
+
+    // Constant constructor
+    Expression(int v)
+        : type(ExpressionType::CONSTANT), value(v) {}
+
+    // Unary expression constructor
+    Expression(UnaryOpast unaryOp, std::unique_ptr<Expression> expr)
+        : type(ExpressionType::UNARY), un_op(unaryOp), operand(std::move(expr)) {}
+
+    // Binary expression constructor
+    Expression(BinaryOpast binaryOp, std::unique_ptr<Expression> lhs, std::unique_ptr<Expression> rhs)
+        : type(ExpressionType::BINARY), bin_op(binaryOp), operand1(std::move(lhs)), operand2(std::move(rhs)) {}
 };
 
 /**

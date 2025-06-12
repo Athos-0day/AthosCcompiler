@@ -59,6 +59,17 @@ enum class UnaryOp {
 };
 
 /**
+ * @brief Supoorted binary operators in the TACKY IR
+ */
+enum class BinaryOp {
+    ADD,         ///< Addition (+)
+    SUBTRACT,    ///< Subtract (-)
+    MULTIPLY,    ///< Multiplication (*)
+    DIVIDE,      ///< Division (/)
+    REMAINDER    ///< Remainder (%)
+};
+
+/**
  * @brief Base class for all instructions in TACKY IR.
  */
 struct Instruction {
@@ -102,6 +113,28 @@ struct Unary : Instruction {
      */
     Unary(UnaryOp o, std::unique_ptr<Val> s, std::unique_ptr<Val> d)
         : op(o), src(std::move(s)), dst(std::move(d)) {}
+
+    std::string toString() const override;
+};
+
+/** 
+ * @brief Represents a binary operation instruction.
+ */
+struct Binary : Instruction {
+    BinaryOp op;
+    std::unique_ptr<Val> src1;
+    std::unique_ptr<Val> src2;
+    std::unique_ptr<Val> dst;
+
+    /**
+     * @brief Constructs a Binary instruction.
+     * @param o The binary operator.
+     * @param s1 The operand 1 value.
+     * @param s2 The operand 2 value.
+     * @param d The destination variable.
+     */
+    Binary(BinaryOp o, std::unique_ptr<Val> s1, std::unique_ptr<Val> s2, std::unique_ptr<Val> d) 
+        : op(o), src1(std::move(s1)), src2(std::move(s2)), dst(std::move(d)) {}
 
     std::string toString() const override;
 };

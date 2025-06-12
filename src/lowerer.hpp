@@ -32,13 +32,23 @@ private:
      * @brief Recursively lower an AST Expression node to a TACKY Val.
      * 
      * If the expression is a constant, returns a Constant IR node.
-     * If it's a unary operation, lowers the operand, emits a Unary instruction,
-     * and returns a Var referencing the temporary variable.
+     * If it's a unary or binary operation, emits the appropriate instruction
+     * and returns a Var referencing the temporary result.
      * 
      * @param expr Pointer to the Expression AST node.
      * @return A unique_ptr to the lowered TACKY Val.
      */
     std::unique_ptr<tacky::Val> lowerExpression(const Expression* expr);
+
+    /**
+     * @brief Convert an AST binary operator to its TACKY equivalent.
+     * 
+     * This avoids unsafe static_cast and ensures semantic correctness.
+     * 
+     * @param op The AST binary operator.
+     * @return The corresponding TACKY binary operator.
+     */
+    tacky::BinaryOp toTackyBinaryOp(BinaryOpast op);
 
 public:
     /**

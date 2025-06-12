@@ -8,7 +8,8 @@
  *  ‹program›   ::= ‹function›
  *  ‹function›  ::= "int" ‹identifier› "(" "void" ")" "{" ‹statement› "}"
  *  ‹statement› ::= "return" ‹exp› ";"
- *  ‹exp›       ::= <int> | <unop> <exp> | "(" <exp> ")"
+ *  ‹exp›       ::= <factor> | <exp> <binop> <exp>
+ *  <factor>    ::= <int> | <unop> <factor> | "(" <exp> ")"
  *
  * It supports verbose logging for debugging and throws detailed exceptions
  * on syntax errors including line information.
@@ -53,6 +54,29 @@ private:
      * @param message Message to log.
      */
     void log(const std::string& message);
+
+    /**
+     * @brief Returns the precedence level of a binary operator token.
+     *
+     * Used during expression parsing to enforce operator precedence.
+     *
+     * Precedences:
+     *   - '+' / '-' : 45
+     *   - '*' / '/' / '%' : 50
+     *
+     * @param token The operator token.
+     * @return Integer precedence value, or -1 if not a binary operator.
+     */
+    int getPrecedence(Token token);
+
+    /**
+     * @brief Converts a token representing a binary operator into its AST equivalent.
+     *
+     * @param token Token to convert (must be a binary operator).
+     * @return Corresponding BinaryOpast enum value.
+     * @throws std::runtime_error If the token is not a supported binary operator.
+     */
+    BinaryOpast tokenToBinaryOp(Token token);
 
 public:
     /**
@@ -103,11 +127,41 @@ public:
     std::unique_ptr<ReturnStatement> parseStatement();
 
     /**
-     * @brief Parses an ‹exp› according to the grammar.
+     * @brief Parses an ‹exp› according to the grammar with default precedence.
      * @return Unique pointer to the Expression AST node.
      * @throws std::runtime_error If parsing fails.
      */
     std::unique_ptr<Expression> parseExpression();
+
+    /**
+     * @brief Parses an ‹exp› using precedence climbing algorithm.
+     *
+     * Used internally to correctly parse binary operations with varying precedence.
+     *
+     * @param minPrecedence Minimum precedence level required to continue parsing.
+     * @return Unique pointer to the Expression AST node.
+     */
+    std::unique_ptr<Expression> parseExpression(int minPrecedence);
+
+    /**
+     * @brief Parses a <factor> according to the grammar.
+     * @return Unique pointer to the Expression AST node.
+     * @throws std::runtime_error If parsing fails.
+     */
+    std::unique_ptr<Expression> parseFactor();
+
+    /**
+     * @brief Ensures the current token matches the expected type, consumes it, and returns it.
+     *
+     * If the token does not match the expected type, this function throws a syntax error
+     * with a custom error message and token position details.
+     *
+     * @param expected The expected token type.
+     * @param errorMsg The error message to display if the token does not match.
+     * @return The consumed token.
+     * @throws std::runtime_error If the current token is not of the expected type.
+     */
+    Lex expect(Token expected, const std::string& errorMsg);
 };
 
 #endif // PARSER_HPP

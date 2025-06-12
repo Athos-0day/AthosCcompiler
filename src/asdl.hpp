@@ -31,7 +31,9 @@ public:
  */
 enum class Reg {
     AX,
-    R10
+    DX,
+    R10,
+    R11
 };
 
 /**
@@ -43,12 +45,23 @@ enum class UnaryOperator {
 };
 
 /**
+ * @brief Enum representing binary-operators.
+ */
+enum class BinaryOperator {
+    ADD,
+    SUB,
+    MULT
+};
+
+/**
  * @brief Convert Reg enum to string.
  */
 inline std::string regToString(Reg r) {
     switch (r) {
         case Reg::AX: return "AX";
+        case Reg::DX: return "DX";
         case Reg::R10: return "R10";
+        case Reg::R11: return "R11";
         default: return "UNKNOWN_REG";
     }
 }
@@ -150,6 +163,46 @@ public:
 
     Operand* getDst() { return dst.get(); }
     void setDst(std::unique_ptr<Operand> newDst) { dst = std::move(newDst); }
+};
+
+class Binary : public Instruction {
+    BinaryOperator binary_operator;
+    std::unique_ptr<Operand> src;
+    std::unique_ptr<Operand> dst;
+public:
+    Binary(BinaryOperator b, std::unique_ptr<Operand> s, std::unique_ptr<Operand> d);
+
+    std::string toString() const override;
+    std::string toASM() const override;
+
+    Operand* getDst() { return dst.get(); }
+    void setDst(std::unique_ptr<Operand> newDst) { dst = std::move(newDst); }
+
+    Operand* getSrc() { return src.get(); }
+    void setSrc(std::unique_ptr<Operand> newSrc) { src = std::move(newSrc); }
+
+    BinaryOperator getBinaryOperator() const { return binary_operator; }
+};
+
+class Idiv : public Instruction {
+    std::unique_ptr<Operand> dst;
+public:
+    Idiv(std::unique_ptr<Operand> d);
+
+    std::string toString() const override;
+    std::string toASM() const override;
+
+    Operand* getDst() { return dst.get(); }
+    void setDst(std::unique_ptr<Operand> newDst) { dst = std::move(newDst); }
+
+};
+
+class Cdq : public Instruction {
+public:
+    Cdq() = default;
+
+    std::string toString() const override;
+    std::string toASM() const override;
 };
 
 class AllocateStack : public Instruction {

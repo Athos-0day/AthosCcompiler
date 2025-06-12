@@ -14,6 +14,7 @@
  * - Multi-line comments 
  * - Punctuation: parentheses, braces, semicolon
  * - Unary Operator: complement, negation, decrement
+ * - Binary Operator: addition, division, multiplication, remainder
  */
 
 #include <iostream>
@@ -46,7 +47,11 @@ enum class Token {
     MISMATCH,       ///< Invalid or unrecognized token
     COMPLEMENT,     ///< Complement operator '~'
     NEGATION,       ///< Negation operator '-'
-    DECREMENT       ///< Decrement operator '--'
+    DECREMENT,       ///< Decrement operator '--'
+    ADDITION,       ///< Addition operator '+'
+    MULTIPLICATION, ///< Multiplication operator '*'
+    DIVISION,       ///< Division operator '/'
+    REMAINDER       ///< Remainder operator '%'
 };
 
 /**
@@ -87,6 +92,10 @@ std::string tokenToString(Token t) {
         case Token::COMPLEMENT: return "COMPLEMENT";
         case Token::NEGATION: return "NEGATION";
         case Token::DECREMENT: return "DECREMENT";
+        case Token::ADDITION: return "ADDITION";
+        case Token::MULTIPLICATION: return "MULTIPLICATION";
+        case Token::DIVISION: return "DIVISION";
+        case Token::REMAINDER: return "REMAINDER"; 
         default: return "MISMATCH";
     }
 }
@@ -112,6 +121,10 @@ Token wordToToken(const std::string& word) {
     if (word == "~")        return Token::COMPLEMENT;
     if (word == "--")       return Token::DECREMENT;
     if (word == "-")        return Token::NEGATION;
+    if (word == "+")        return Token::ADDITION;
+    if (word == "*")        return Token::MULTIPLICATION;
+    if (word == "/")        return Token::DIVISION;
+    if (word == "%")        return Token::REMAINDER;
 
     if (std::regex_match(word, std::regex(R"(\d+)"))) 
         return Token::CONSTANT;
@@ -179,6 +192,10 @@ std::vector<Lex> lexer(const std::string& filename, bool verbose = true) {
         {std::regex(R"(^~)"), Token::COMPLEMENT},
         {std::regex(R"(^--)"), Token::DECREMENT},
         {std::regex(R"(^-)"), Token::NEGATION},
+        {std::regex(R"(^\+)"), Token::ADDITION},
+        {std::regex(R"(^\*)"), Token::MULTIPLICATION},
+        {std::regex(R"(^\/)"), Token::DIVISION},
+        {std::regex(R"(^\%)"), Token::REMAINDER},
         {std::regex(R"(^\d+[a-zA-Z_]\w*)"), Token::MISMATCH}, // invalid token like 123abc
         {std::regex(R"(^[a-zA-Z_]\w*)"), Token::IDENTIFIER},
         {std::regex(R"(^\d+)"), Token::CONSTANT},

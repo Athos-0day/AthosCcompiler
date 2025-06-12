@@ -17,6 +17,22 @@ std::string toString(UnaryOp op) {
     }
 }
 
+/**
+ * @brief Converts a binary operator enum to its string representation.
+ * @param op The binary operator
+ * @return The string name of the operator
+ */
+std::string toString(BinaryOp op) {
+    switch (op) {
+        case BinaryOp::ADD: return "Add";
+        case BinaryOp::SUBTRACT: return "Subtract";
+        case BinaryOp::MULTIPLY: return "Multiply";
+        case BinaryOp::DIVIDE: return "Divide";
+        case BinaryOp::REMAINDER: return "Remainder";
+        default: return "UnknownBinaryOp";
+    }
+}
+
 // ======== toString methods for Val types ========
 
 std::string Constant::toString() const {
@@ -39,6 +55,15 @@ std::string Unary::toString() const {
         << src->toString() << ", "
         << dst->toString() << ")";
     return oss.str();
+}
+
+std::string Binary::toString() const {
+    std::ostringstream oss;
+    oss << "Binary(" << tacky::toString(op) << ", "
+        << src1->toString() << ", "
+        << src2->toString() << ", "
+        << dst->toString() << ")";
+    return oss.str(); 
 }
 
 // ======== toString for Function ========

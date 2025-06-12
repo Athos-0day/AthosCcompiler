@@ -3,6 +3,14 @@
 #include <stdexcept>
 #include <cctype>  // for std::tolower
 
+// --- Idiv ---
+Idiv::Idiv(std::unique_ptr<Operand> d) : dst(std::move(d)) {}
+
+// --- Binary ---
+Binary::Binary(BinaryOperator op, std::unique_ptr<Operand> s, std::unique_ptr<Operand> d)
+    : binary_operator(op), src(std::move(s)), dst(std::move(d)) {}
+
+
 // --- Imm ---
 
 std::string Imm::toString() const {
@@ -20,11 +28,13 @@ std::string Register::toString() const {
 }
 
 std::string Register::toASM() const {
-    switch (getReg()) {
+    switch (reg) {
         case Reg::AX: return "%eax";
+        case Reg::DX: return "%edx";
         case Reg::R10: return "%r10d";
+        case Reg::R11: return "%r11d";
+        default: return "%UNKNOWN_REG";
     }
-    return "%unk";
 }
 
 // --- Pseudo ---
@@ -81,6 +91,51 @@ std::string Unary::toASM() const {
     }
 }
 
+// --- Cdq ---
+std::string Cdq::toString() const {
+    return "Cdq";
+}
+
+std::string Cdq::toASM() const {
+    return "cdq";
+}
+
+// --- Idiv ---
+std::string Idiv::toString() const {
+    return "Idiv(dst= " + dst->toString() + ")";
+}
+
+std::string Idiv::toASM() const {
+    return "idivl " + dst->toASM();
+}
+
+// --- Binary ---
+std::string Binary::toString() const {
+    std::string opStr;
+    if (binary_operator == BinaryOperator::ADD) {
+        opStr = "ADD";
+    } else if (binary_operator == BinaryOperator::SUB) {
+        opStr = "SUB";
+    } else {
+        opStr = "MULT";
+    }
+
+    return "Binary(" + opStr + ", " + src->toString() + ", " + dst->toString() + ")";
+}
+
+std::string Binary::toASM() const {
+    switch (binary_operator) {
+        case BinaryOperator::ADD:
+            return "addl " + src->toASM() + ", " + dst->toASM();
+        case BinaryOperator::SUB:
+            return "subl " + src->toASM() + ", " + dst->toASM();
+        case BinaryOperator::MULT:
+            return "imull " + src->toASM() + ", " + dst->toASM();
+        default:
+            return "UNKNOWN_BINARY_OP";
+    }
+}
+
 // --- AllocateStack ---
 
 AllocateStack::AllocateStack(int n) : value(n) {}
@@ -120,11 +175,9 @@ const std::vector<std::unique_ptr<Instruction>>& FunctionDefinition::getInstruct
 }
 
 std::string FunctionDefinition::toString() const {
-    std::string result = "FunctionDefinition(name=" + name + ", instructions=[";
-    for (size_t i = 0; i < instructions.size(); ++i) {
-        result += instructions[i]->toString();
-        if (i + 1 < instructions.size())
-            result += ", ";
+    std::string result = "FunctionDefinition(name=" + name + ", instructions=[\n";
+    for (const auto& instr : instructions) {
+        result += "  " + instr->toString() + "\n";
     }
     result += "])";
     return result;
@@ -180,6 +233,7 @@ ASDLProgram convertTackyToASDL(const tacky::Program& tackyProgram) {
     std::vector<std::unique_ptr<Instruction>> asdlInstructions;
 
     for (const auto& instr : tackyProgram.function->body) {
+        // Handle Return
         if (auto ret = dynamic_cast<const tacky::Return*>(instr.get())) {
             if (auto c = dynamic_cast<const tacky::Constant*>(ret->value.get())) {
                 asdlInstructions.push_back(std::make_unique<Mov>(
@@ -193,7 +247,10 @@ ASDLProgram convertTackyToASDL(const tacky::Program& tackyProgram) {
                 ));
             }
             asdlInstructions.push_back(std::make_unique<Ret>());
-        } else if (auto unary = dynamic_cast<const tacky::Unary*>(instr.get())) {
+        }
+
+        // Handle Unary
+        else if (auto unary = dynamic_cast<const tacky::Unary*>(instr.get())) {
             UnaryOperator op;
             switch (unary->op) {
                 case tacky::UnaryOp::Complement: op = UnaryOperator::NOT; break;
@@ -222,6 +279,71 @@ ASDLProgram convertTackyToASDL(const tacky::Program& tackyProgram) {
                 op,
                 std::move(dst)
             ));
+        }
+
+        // Handle Binary
+        else if (auto binary = dynamic_cast<const tacky::Binary*>(instr.get())) {
+            std::unique_ptr<Operand> src1;
+            if (auto c = dynamic_cast<const tacky::Constant*>(binary->src1.get())) {
+                src1 = std::make_unique<Imm>(c->value);
+            } else if (auto v = dynamic_cast<const tacky::Var*>(binary->src1.get())) {
+                src1 = std::make_unique<Pseudo>(v->name);
+            }
+
+            std::unique_ptr<Operand> src2;
+            if (auto c = dynamic_cast<const tacky::Constant*>(binary->src2.get())) {
+                src2 = std::make_unique<Imm>(c->value);
+            } else if (auto v = dynamic_cast<const tacky::Var*>(binary->src2.get())) {
+                src2 = std::make_unique<Pseudo>(v->name);
+            }
+
+            std::string dstName = dynamic_cast<const tacky::Var*>(binary->dst.get())->name;
+            auto dst = std::make_unique<Pseudo>(dstName);
+
+            if (binary->op == tacky::BinaryOp::DIVIDE || binary->op == tacky::BinaryOp::REMAINDER) {
+                // mov src1, %eax
+                asdlInstructions.push_back(std::make_unique<Mov>(
+                    std::move(src1),
+                    std::make_unique<Register>(Reg::AX)
+                ));
+
+                // cdq
+                asdlInstructions.push_back(std::make_unique<Cdq>());
+
+                // idiv src2
+                asdlInstructions.push_back(std::make_unique<Idiv>(
+                    std::move(src2)
+                ));
+
+                // mov %eax or %edx -> dst
+                asdlInstructions.push_back(std::make_unique<Mov>(
+                    std::make_unique<Register>(
+                        binary->op == tacky::BinaryOp::DIVIDE ? Reg::AX : Reg::DX
+                    ),
+                    std::move(dst)
+                ));
+            } else {
+                BinaryOperator op;
+                switch (binary->op) {
+                    case tacky::BinaryOp::ADD:      op = BinaryOperator::ADD; break;
+                    case tacky::BinaryOp::SUBTRACT: op = BinaryOperator::SUB; break;
+                    case tacky::BinaryOp::MULTIPLY: op = BinaryOperator::MULT; break;
+                    default: throw std::runtime_error("Unknown BinaryOp");
+                }
+
+                // mov src1, dst
+                asdlInstructions.push_back(std::make_unique<Mov>(
+                    std::move(src1),
+                    std::make_unique<Pseudo>(dst->getIdentifier())
+                ));
+
+                // op src2, dst
+                asdlInstructions.push_back(std::make_unique<Binary>(
+                    op,
+                    std::move(src2),
+                    std::move(dst)
+                ));
+            }
         }
     }
 
@@ -281,11 +403,46 @@ int replacePseudosWithStack(ASDLProgram& program) {
             }
         }
 
-        // TODO: handle other instruction types as needed
+        // Handle Binary instructions
+        if (auto binary = dynamic_cast<Binary*>(instr.get())) {
+            Operand* dstOp = binary->getDst();
+            if (auto pseudo = dynamic_cast<Pseudo*>(dstOp)) {
+                const std::string& name = pseudo->getIdentifier();
+                if (!pseudoOffsets.count(name)) {
+                    pseudoOffsets[name] = stackOffset;
+                    stackOffset -= 4;
+                }
+                binary->setDst(std::make_unique<Stack>(pseudoOffsets[name]));
+            }
+
+            Operand* srcOp = binary->getSrc();
+            if (auto pseudo = dynamic_cast<Pseudo*>(srcOp)) {
+                const std::string& name = pseudo->getIdentifier();
+                if (!pseudoOffsets.count(name)) {
+                    pseudoOffsets[name] = stackOffset;
+                    stackOffset -= 4;
+                }
+                binary->setSrc(std::make_unique<Stack>(pseudoOffsets[name]));
+            }
+        }
+
+        // Handle Idiv instructions
+        if (auto idiv = dynamic_cast<Idiv*>(instr.get())) {
+            Operand* dstOp = idiv->getDst();
+            if (auto pseudo = dynamic_cast<Pseudo*>(dstOp)) {
+                const std::string& name = pseudo->getIdentifier();
+                if (!pseudoOffsets.count(name)) {
+                    pseudoOffsets[name] = stackOffset;
+                    stackOffset -= 4;
+                }
+                idiv->setDst(std::make_unique<Stack>(pseudoOffsets[name]));
+            }
+        }
     }
 
     return stackOffset;
 }
+
 
 std::vector<std::unique_ptr<Instruction>>& FunctionDefinition::getInstructions() {
     return instructions;
@@ -301,14 +458,10 @@ void insertAllocateStack(ASDLProgram& program, int stackSize) {
 }
 
 void legalizeMovMemoryToMemory(ASDLProgram& program) {
-    // Get the list of instructions from the program
     auto& instructions = program.getFunctionDefinition()->getInstructions();
-
-    // This will hold the updated list of instructions
     std::vector<std::unique_ptr<Instruction>> legalizedInstructions;
 
     for (auto& instr : instructions) {
-        // Process only Mov instructions
         if (auto mov = dynamic_cast<Mov*>(instr.get())) {
             Operand* src = mov->getSrc();
             Operand* dst = mov->getDst();
@@ -316,34 +469,83 @@ void legalizeMovMemoryToMemory(ASDLProgram& program) {
             bool srcIsMemory = dynamic_cast<Stack*>(src) != nullptr;
             bool dstIsMemory = dynamic_cast<Stack*>(dst) != nullptr;
 
-            // If both operands are memory (e.g., movl -4(%rbp), -8(%rbp)), it's invalid in x86
             if (srcIsMemory && dstIsMemory) {
-                // Insert: movl src, %r10d
                 legalizedInstructions.push_back(std::make_unique<Mov>(
-                    std::unique_ptr<Operand>(mov->cloneSrc()),
+                    std::unique_ptr<Operand>(src->clone()),
                     std::make_unique<Register>(Reg::R10)
                 ));
-
-                // Insert: movl %r10d, dst
                 legalizedInstructions.push_back(std::make_unique<Mov>(
                     std::make_unique<Register>(Reg::R10),
-                    std::unique_ptr<Operand>(mov->cloneDst())
+                    std::unique_ptr<Operand>(dst->clone())
                 ));
             } else {
-                // Instruction is valid, copy as-is
                 legalizedInstructions.push_back(std::move(instr));
             }
+
+        } else if (auto idiv = dynamic_cast<Idiv*>(instr.get())) {
+            Operand* op = idiv->getDst();  // utiliser getDst()
+
+            // Si opérande immédiate, légaliser
+            if (dynamic_cast<Imm*>(op)) {
+                legalizedInstructions.push_back(std::make_unique<Mov>(
+                    std::unique_ptr<Operand>(op->clone()),
+                    std::make_unique<Register>(Reg::R10)
+                ));
+                legalizedInstructions.push_back(std::make_unique<Idiv>(
+                    std::make_unique<Register>(Reg::R10)
+                ));
+            } else {
+                legalizedInstructions.push_back(std::move(instr));
+            }
+
+        } else if (auto bin = dynamic_cast<Binary*>(instr.get())) {
+            Operand* src = bin->getSrc();
+            Operand* dst = bin->getDst();
+
+            bool srcIsStack = dynamic_cast<Stack*>(src) != nullptr;
+            bool dstIsStack = dynamic_cast<Stack*>(dst) != nullptr;
+            bool srcIsImm = dynamic_cast<Imm*>(src) != nullptr;
+
+            auto op = bin->getBinaryOperator();  // Il faut ajouter ce getter dans Binary !
+
+            // addl || subl -4(%rbp), -8(%rbp)
+            if ((op == BinaryOperator::ADD || op == BinaryOperator::SUB) && srcIsStack && dstIsStack) {
+                legalizedInstructions.push_back(std::make_unique<Mov>(
+                    std::unique_ptr<Operand>(src->clone()),
+                    std::make_unique<Register>(Reg::R10)
+                ));
+                legalizedInstructions.push_back(std::make_unique<Binary>(
+                    BinaryOperator::ADD,
+                    std::make_unique<Register>(Reg::R10),
+                    std::unique_ptr<Operand>(dst->clone())
+                ));
+
+            // imull $3, -4(%rbp)
+            } else if (op == BinaryOperator::MULT && srcIsImm && dstIsStack) {
+                legalizedInstructions.push_back(std::make_unique<Mov>(
+                    std::unique_ptr<Operand>(dst->clone()),
+                    std::make_unique<Register>(Reg::R11)
+                ));
+                legalizedInstructions.push_back(std::make_unique<Binary>(
+                    BinaryOperator::MULT,
+                    std::unique_ptr<Operand>(src->clone()),
+                    std::make_unique<Register>(Reg::R11)
+                ));
+                legalizedInstructions.push_back(std::make_unique<Mov>(
+                    std::make_unique<Register>(Reg::R11),
+                    std::unique_ptr<Operand>(dst->clone())
+                ));
+            } else {
+                legalizedInstructions.push_back(std::move(instr));
+            }
+
         } else {
-            // Non-Mov instruction, copy as-is
             legalizedInstructions.push_back(std::move(instr));
         }
     }
 
-    // Replace original instruction list with the updated one
     instructions = std::move(legalizedInstructions);
 }
-
-
 
 // --- writeASMToFile ---
 
