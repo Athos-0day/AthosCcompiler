@@ -1,6 +1,6 @@
 # Mini C Compiler
 
-A small compiler written in c++ that handles a minimal subset of the C language.
+A small compiler written in C++ that handles a minimal subset of the C language.
 
 ## Supported Features
 
@@ -13,11 +13,32 @@ This compiler currently supports:
 
 ## Supported C Syntax
 
-At the moment, the compiler supports only one specific kind of program:
+At the moment, the compiler supports simple programs including:
 
 ```c
 int main(void) {
     return 42;
+}
+```
+
+In addition, the compiler supports basic **unary and binary operations**, including:
+
+### Unary operators:
+- `-x` (negation)
+- `~x` (bitwise NOT)
+
+### Binary operators:
+- `+` (addition)
+- `-` (subtraction)
+- `*` (multiplication)
+- `/` (division)
+- `%` (modulo)
+
+These can be used inside expressions within the `return` statement, e.g.:
+
+```c
+int main(void) {
+    return -(5 + 3) * 2 % 4;
 }
 ```
 
@@ -37,7 +58,7 @@ Then run the program:
 
 ```bash
 ./output
-echo $?   # Should print 42
+echo $?   # Should print the result of the return expression
 ```
 
 ### Linux (x86-64)
@@ -47,7 +68,7 @@ On Linux with an x86-64 machine, a standard `gcc` or `clang` command should suff
 ```bash
 gcc -o output out.s
 ./output
-echo $?   # Should print 42
+echo $?   # Should print the return value
 ```
 
 ## Notes
