@@ -19,7 +19,7 @@ At the moment, the compiler supports simple programs including:
 int main(void) {
     return 42;
 }
-
+```
 
 In addition, the compiler supports basic **unary and binary operations**, including:
 
