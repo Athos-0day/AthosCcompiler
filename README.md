@@ -19,26 +19,39 @@ At the moment, the compiler supports simple programs including:
 int main(void) {
     return 42;
 }
-```
+
 
 In addition, the compiler supports basic **unary and binary operations**, including:
 
 ### Unary operators:
 - `-x` (negation)
 - `~x` (bitwise NOT)
+- `!x` (logical NOT)
 
 ### Binary operators:
+
+####Arithmetic:
 - `+` (addition)
 - `-` (subtraction)
 - `*` (multiplication)
 - `/` (division)
 - `%` (modulo)
 
+####Logical and comparison operators:
+- `<` (less than)
+- `<=` (less or equal)
+- `>` (greater than)
+- `>=` (greater or equal)
+- `==` (equal)
+- `!=` (not equal)
+- `&&` (logical AND)
+- `||` (logical OR)
+
 These can be used inside expressions within the `return` statement, e.g.:
 
 ```c
 int main(void) {
-    return -(5 + 3) * 2 % 4;
+    return !(5 + 3 < 10) && (2 == 2 || 0);
 }
 ```
 
