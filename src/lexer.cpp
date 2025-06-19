@@ -15,6 +15,7 @@
  * - Punctuation: parentheses, braces, semicolon
  * - Unary Operator: complement, negation, decrement
  * - Binary Operator: addition, division, multiplication, remainder
+ * - Logical and relational operators: and, or, equal, not equal, greater, less, greater or equal, less or equal
  */
 
 #include <iostream>
@@ -47,11 +48,20 @@ enum class Token {
     MISMATCH,       ///< Invalid or unrecognized token
     COMPLEMENT,     ///< Complement operator '~'
     NEGATION,       ///< Negation operator '-'
-    DECREMENT,       ///< Decrement operator '--'
+    DECREMENT,      ///< Decrement operator '--'
     ADDITION,       ///< Addition operator '+'
     MULTIPLICATION, ///< Multiplication operator '*'
     DIVISION,       ///< Division operator '/'
-    REMAINDER       ///< Remainder operator '%'
+    REMAINDER,      ///< Remainder operator '%'
+    NOT,            ///< Not Operator '!' 
+    AND,            ///< And Operator '&&'
+    OR,             ///< Or Operator '||'
+    EQUAL,          ///< Equal Operator '=='
+    NOTEQUAL,       ///< Not Equal Operator '!='
+    LESS,           ///< Less '<'
+    GREATER,        ///< Greater '>'
+    LESSEQ,         ///< Less or Equal '<='
+    GREATEREQ       ///< Greater or Equal '>='
 };
 
 /**
@@ -95,7 +105,16 @@ std::string tokenToString(Token t) {
         case Token::ADDITION: return "ADDITION";
         case Token::MULTIPLICATION: return "MULTIPLICATION";
         case Token::DIVISION: return "DIVISION";
-        case Token::REMAINDER: return "REMAINDER"; 
+        case Token::REMAINDER: return "REMAINDER";
+        case Token::NOT: return "NOT";
+        case Token::AND: return "AND";
+        case Token::OR: return "OR";
+        case Token::EQUAL: return "EQUAL";
+        case Token::NOTEQUAL: return "NOT EQUAL";
+        case Token::LESS: return "LESS";
+        case Token::GREATER: return "GREATER";
+        case Token::LESSEQ: return "LESS OR EQUAL";
+        case Token::GREATEREQ: return "GREATER OR EQUAL";
         default: return "MISMATCH";
     }
 }
@@ -125,6 +144,15 @@ Token wordToToken(const std::string& word) {
     if (word == "*")        return Token::MULTIPLICATION;
     if (word == "/")        return Token::DIVISION;
     if (word == "%")        return Token::REMAINDER;
+    if (word == "&&")       return Token::AND;
+    if (word == "||")       return Token::OR;
+    if (word == "==")       return Token::EQUAL;
+    if (word == "!=")       return Token::NOTEQUAL;
+    if (word == "!")        return Token::NOT;
+    if (word == "<")        return Token::LESS;
+    if (word == ">")        return Token::GREATER;
+    if (word == "<=")       return Token::LESSEQ;
+    if (word == ">=")       return Token::GREATEREQ;
 
     if (std::regex_match(word, std::regex(R"(\d+)"))) 
         return Token::CONSTANT;
@@ -182,6 +210,7 @@ std::vector<Lex> lexer(const std::string& filename, bool verbose = true) {
 
     // Patterns for different token types in priority order
     std::vector<std::pair<std::regex, Token>> patterns = {
+        {std::regex(R"(^#[^\n]*)"), Token::SKIP},
         {std::regex(R"(^//[^\n]*)"), Token::COMMENT},
         {std::regex(R"(^/\*([^*]|\*+[^*/])*\*+/)"), Token::ML_COMMENT},
         {std::regex(R"(^\()"), Token::OPARENTHESIS},
@@ -196,6 +225,15 @@ std::vector<Lex> lexer(const std::string& filename, bool verbose = true) {
         {std::regex(R"(^\*)"), Token::MULTIPLICATION},
         {std::regex(R"(^\/)"), Token::DIVISION},
         {std::regex(R"(^\%)"), Token::REMAINDER},
+        {std::regex(R"(^&&)"), Token::AND},
+        {std::regex(R"(^\|\|)"), Token::OR},
+        {std::regex(R"(^==)"), Token::EQUAL},
+        {std::regex(R"(^!=)"), Token::NOTEQUAL},
+        {std::regex(R"(^!)"), Token::NOT},
+        {std::regex(R"(^<=)"), Token::LESSEQ},
+        {std::regex(R"(^>=)"), Token::GREATEREQ},
+        {std::regex(R"(^<)"), Token::LESS},
+        {std::regex(R"(^>)"), Token::GREATER},
         {std::regex(R"(^\d+[a-zA-Z_]\w*)"), Token::MISMATCH}, // invalid token like 123abc
         {std::regex(R"(^[a-zA-Z_]\w*)"), Token::IDENTIFIER},
         {std::regex(R"(^\d+)"), Token::CONSTANT},

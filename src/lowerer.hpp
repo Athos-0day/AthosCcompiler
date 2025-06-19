@@ -19,6 +19,7 @@
 class Lowerer {
 private:
     int tempCounter = 0; ///< Counter to generate fresh temporary variable names
+    int labelCounter = 0; ///< Counter to generate fresh labels
     std::vector<std::unique_ptr<tacky::Instruction>> instructions; ///< Buffer of TACKY instructions
 
     /**
@@ -27,6 +28,14 @@ private:
      * @return A string representing the temporary variable (e.g., "%tmp0").
      */
     std::string newTemp();
+
+    /**
+     * @brief Generate a new unique label name based on a base string.
+     * 
+     * @param base The base name for the label (e.g., "true", "false", "end").
+     * @return A unique label string (e.g., "false_1").
+     */
+    std::string newLabel(const std::string& base);
 
     /**
      * @brief Recursively lower an AST Expression node to a TACKY Val.

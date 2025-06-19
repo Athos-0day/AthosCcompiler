@@ -101,6 +101,14 @@ int Parser::getPrecedence(Token token) {
         case Token::MULTIPLICATION:
         case Token::DIVISION:
         case Token::REMAINDER: return 50;
+        case Token::LESS:
+        case Token::LESSEQ:
+        case Token::GREATER:
+        case Token::GREATEREQ: return 35;
+        case Token::EQUAL:
+        case Token::NOTEQUAL: return 30;
+        case Token::AND: return 10;
+        case Token::OR: return 5;
         default: return -1;
     }
 }
@@ -113,6 +121,14 @@ BinaryOpast Parser::tokenToBinaryOp(Token token) {
         case Token::MULTIPLICATION: return BinaryOpast::MULTIPLY;
         case Token::DIVISION:   return BinaryOpast::DIVIDE;
         case Token::REMAINDER: return BinaryOpast::REMAINDER;
+        case Token::AND: return BinaryOpast::AND;
+        case Token::OR: return BinaryOpast::OR;
+        case Token::EQUAL: return BinaryOpast::EQUAL;
+        case Token::NOTEQUAL: return BinaryOpast::NOTEQUAL;
+        case Token::LESS: return BinaryOpast::LESSTHAN;
+        case Token::LESSEQ: return BinaryOpast::LESSEQ;
+        case Token::GREATER: return BinaryOpast::GREATERTHAN;
+        case Token::GREATEREQ: return BinaryOpast::GREATEREQ;
         default:
             throw std::runtime_error("Unexpected binary operator token");
     }
@@ -152,8 +168,15 @@ std::unique_ptr<Expression> Parser::parseFactor() {
         log("Parsed integer literal: " + std::to_string(value));
         return std::make_unique<Expression>(value);
     }
-    else if (currentToken.token == Token::COMPLEMENT || currentToken.token == Token::NEGATION) {
-        UnaryOpast unop = (currentToken.token == Token::COMPLEMENT) ? UnaryOpast::COMPLEMENT : UnaryOpast::NEGATE;
+    else if (currentToken.token == Token::COMPLEMENT || currentToken.token == Token::NEGATION || currentToken.token == Token::NOT) {
+        UnaryOpast unop;
+        if (currentToken.token == Token::COMPLEMENT) {
+            unop = UnaryOpast::COMPLEMENT;
+        } else if (currentToken.token == Token::NEGATION) {
+            unop = UnaryOpast::NEGATE;
+        } else {
+            unop = UnaryOpast::NOT;
+        }
         advance();
         std::unique_ptr<Expression> operand = parseFactor();
         log("Parsed unary operator: " + currentToken.word);

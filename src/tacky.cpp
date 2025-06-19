@@ -13,6 +13,7 @@ std::string toString(UnaryOp op) {
     switch (op) {
         case UnaryOp::Complement: return "Complement";
         case UnaryOp::Negate: return "Negate";
+        case UnaryOp::Not: return "Not";
         default: return "UnknownUnaryOp";
     }
 }
@@ -29,6 +30,14 @@ std::string toString(BinaryOp op) {
         case BinaryOp::MULTIPLY: return "Multiply";
         case BinaryOp::DIVIDE: return "Divide";
         case BinaryOp::REMAINDER: return "Remainder";
+        case BinaryOp::EQUAL: return "Equal";
+        case BinaryOp::NOTEQUAL: return "Not Equal";
+        case BinaryOp::LESSTHAN: return "Less than";
+        case BinaryOp::LESSEQ: return "Less or equal";
+        case BinaryOp::GREATERTHAN: return "Greater than";
+        case BinaryOp::GREATEREQ: return "Greater or equal";
+        case BinaryOp::AND: return "And";
+        case BinaryOp::OR: return "Or";
         default: return "UnknownBinaryOp";
     }
 }
@@ -64,6 +73,32 @@ std::string Binary::toString() const {
         << src2->toString() << ", "
         << dst->toString() << ")";
     return oss.str(); 
+}
+
+std::string Copy::toString() const {
+    std::ostringstream oss;
+    oss << "Copy(" << src->toString() << ", " << dst->toString() << ")";
+    return oss.str();
+}
+
+std::string Jump::toString() const {
+    return "Jump(" + target + ")";
+}
+
+std::string JumpIfZero::toString() const {
+    std::ostringstream oss;
+    oss << "JumpIfZero(" << condition->toString() << ", " << target << ")";
+    return oss.str();
+}
+
+std::string JumpIfNotZero::toString() const {
+    std::ostringstream oss;
+    oss << "JumpIfNotZero(" << condition->toString() << ", " << target << ")";
+    return oss.str();
+}
+
+std::string Label::toString() const {
+    return "Label(" + name + ")";
 }
 
 // ======== toString for Function ========

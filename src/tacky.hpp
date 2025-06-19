@@ -55,7 +55,8 @@ struct Var : Val {
  */
 enum class UnaryOp {
     Complement,  ///< Bitwise complement (~)
-    Negate       ///< Arithmetic negation (-)
+    Negate,       ///< Arithmetic negation (-)
+    Not          ///< (!)
 };
 
 /**
@@ -66,7 +67,15 @@ enum class BinaryOp {
     SUBTRACT,    ///< Subtract (-)
     MULTIPLY,    ///< Multiplication (*)
     DIVIDE,      ///< Division (/)
-    REMAINDER    ///< Remainder (%)
+    REMAINDER,    ///< Remainder (%)
+    EQUAL,        ///< ==
+    NOTEQUAL,     ///< !=
+    LESSTHAN,     ///< <
+    LESSEQ,       ///< <=
+    GREATERTHAN,  ///< >
+    GREATEREQ,     ///< >=
+    AND,
+    OR
 };
 
 /**
@@ -135,6 +144,62 @@ struct Binary : Instruction {
      */
     Binary(BinaryOp o, std::unique_ptr<Val> s1, std::unique_ptr<Val> s2, std::unique_ptr<Val> d) 
         : op(o), src1(std::move(s1)), src2(std::move(s2)), dst(std::move(d)) {}
+
+    std::string toString() const override;
+};
+
+struct Copy : Instruction {
+    std::unique_ptr<Val> src;         ///< Source operand
+    std::unique_ptr<Val> dst;         ///< Destination variable
+
+    /**
+     * @brief Constructs a Copy instruction.
+     * @param s The source value
+     * @param d The destination variable
+     */
+    Copy(std::unique_ptr<Val> s, std::unique_ptr<Val> d) 
+        : src(std::move(s)), dst(std::move(d)) {}
+    
+    std::string toString() const override;
+};
+
+struct Jump : Instruction {
+    std::string target;
+
+    /**
+     * @brief Constructs a Jump instruction.
+     * @param t name of the target
+     */
+    Jump(std::string t) 
+        : target(t) {}
+    
+    std::string toString() const override;
+};
+
+struct JumpIfZero : Instruction {
+    std::unique_ptr<Val> condition;
+    std::string target;
+
+    JumpIfZero(std::unique_ptr<Val> c, std::string t)
+        : condition(std::move(c)), target(t) {}
+    
+    std::string toString() const override;
+};
+
+struct JumpIfNotZero : Instruction {
+    std::unique_ptr<Val> condition;
+    std::string target;
+
+    JumpIfNotZero(std::unique_ptr<Val> c, std::string t)
+        : condition(std::move(c)), target(t) {}
+    
+    std::string toString() const override;
+};
+
+struct Label : Instruction {
+    std::string name;
+
+    Label(const std::string& n) : name(n) {}
 
     std::string toString() const override;
 };

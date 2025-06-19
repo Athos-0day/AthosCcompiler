@@ -19,7 +19,8 @@ enum class ExpressionType {
  */
 enum class UnaryOpast {
     COMPLEMENT,
-    NEGATE
+    NEGATE,
+    NOT
 };
 
 /**
@@ -30,7 +31,15 @@ enum class BinaryOpast {
     SUBTRACT,
     MULTIPLY,
     DIVIDE,
-    REMAINDER
+    REMAINDER,
+    AND,
+    OR,
+    EQUAL,
+    NOTEQUAL,
+    LESSTHAN,
+    LESSEQ,
+    GREATERTHAN,
+    GREATEREQ
 };
 
 /**

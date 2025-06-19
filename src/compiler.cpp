@@ -79,7 +79,7 @@ int main(int argc, char* argv[]) {
 
             ASDLProgram asdlProgram = convertTackyToASDL(*tackyProgram);
             int stackOffset = replacePseudosWithStack(asdlProgram);  
-            insertAllocateStack(asdlProgram,stackOffset);
+            insertAllocateStack(asdlProgram,-stackOffset);
             legalizeMovMemoryToMemory(asdlProgram);
 
             std::cout << "\nGenerated ASDL:\n";
