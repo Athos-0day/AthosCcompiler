@@ -30,14 +30,14 @@ In addition, the compiler supports basic **unary and binary operations**, includ
 
 ### Binary operators:
 
-####Arithmetic:
+#### Arithmetic:
 - `+` (addition)
 - `-` (subtraction)
 - `*` (multiplication)
 - `/` (division)
 - `%` (modulo)
 
-####Logical and comparison operators:
+#### Logical and comparison operators:
 - `<` (less than)
 - `<=` (less or equal)
 - `>` (greater than)
