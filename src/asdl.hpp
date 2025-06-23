@@ -112,7 +112,7 @@ inline std::string condNodeToASM(CondNode c) {
  */
 class Operand : public ASDLNode {
 public:
-    virtual ~Operand() = default;
+    virtual ~Operand() {}
 
     /**
      * @brief Clone the operand object.

@@ -1,33 +1,26 @@
 #include "parser.hpp"
 #include "ast.hpp"
+#include <sstream>
+#include <iostream>
 
 // Constructor
 Parser::Parser(const std::vector<Lex>& t, bool verboseMode) : tokens(t), verbose(verboseMode) {}
 
-// error()
+// Error handling
 [[noreturn]] void Parser::error(const std::string& message, const Lex& token) {
     std::ostringstream oss;
     oss << "Parse error at line " << token.line << ": " << message;
     throw std::runtime_error(oss.str());
 }
 
-// log()
+// Verbose log
 void Parser::log(const std::string& message) {
     if (verbose) {
         std::cout << "[Parser] " << message << std::endl;
     }
 }
 
-// expect()
-Lex Parser::expect(Token expected, const std::string& errorMsg) {
-    Lex token = peek();
-    if (token.token != expected) {
-        error(errorMsg, token);
-    }
-    return advance();
-}
-
-// peek()
+// Token helpers
 Lex Parser::peek() {
     if (current < tokens.size()) {
         return tokens[current];
@@ -36,7 +29,6 @@ Lex Parser::peek() {
     }
 }
 
-// advance()
 Lex Parser::advance() {
     if (current < tokens.size()) {
         log("Advance token: " + tokens[current].word + " (line " + std::to_string(tokens[current].line) + ")");
@@ -46,7 +38,6 @@ Lex Parser::advance() {
     }
 }
 
-// match()
 bool Parser::match(Token t) {
     if (current < tokens.size() && tokens[current].token == t) {
         log("Match token: " + tokens[current].word + " (line " + std::to_string(tokens[current].line) + ")");
@@ -56,7 +47,15 @@ bool Parser::match(Token t) {
     return false;
 }
 
-// parseProgram()
+Lex Parser::expect(Token expected, const std::string& errorMsg) {
+    Lex token = peek();
+    if (token.token != expected) {
+        error(errorMsg, token);
+    }
+    return advance();
+}
+
+// Parse entry point
 std::unique_ptr<Program> Parser::parseProgram() {
     log("Parsing program");
     auto func = parseFunction();
@@ -67,33 +66,81 @@ std::unique_ptr<Program> Parser::parseProgram() {
     return std::make_unique<Program>(std::move(func));
 }
 
-// parseFunction()
+// Parse function
 std::unique_ptr<Function> Parser::parseFunction() {
     log("Parsing function");
-    if (!match(Token::INT)) error("Expected 'int' at the beginning of function", peek());
-    if (!match(Token::IDENTIFIER)) error("Expected function name (identifier)", peek());
+
+    expect(Token::INT, "Expected 'int' at function start");
+    expect(Token::IDENTIFIER, "Expected function name");
     std::string funcName = tokens[current - 1].word;
-    if (!match(Token::OPARENTHESIS)) error("Expected '(' after function name", peek());
-    if (!match(Token::VOID)) error("Expected 'void' in function parameters", peek());
-    if (!match(Token::CPARENTHESIS)) error("Expected ')' after 'void'", peek());
-    if (!match(Token::OBRACE)) error("Expected '{' to start function body", peek());
-    auto stmt = parseStatement();
-    if (!match(Token::CBRACE)) error("Expected '}' to close function body", peek());
+
+    expect(Token::OPARENTHESIS, "Expected '(' after function name");
+    expect(Token::VOID, "Expected 'void' in parameter list");
+    expect(Token::CPARENTHESIS, "Expected ')' after 'void'");
+    expect(Token::OBRACE, "Expected '{' to begin function body");
+
+    std::vector<std::unique_ptr<BlockItem>> body;
+
+    while (peek().token != Token::CBRACE && peek().token != Token::MISMATCH) {
+        body.push_back(parseBlockItem());
+    }
+
+    expect(Token::CBRACE, "Expected '}' to close function body");
+
     log("Parsed function '" + funcName + "' successfully");
-    return std::make_unique<Function>(funcName, std::move(stmt));
+    return std::make_unique<Function>(funcName, std::move(body));
 }
 
-// parseStatement()
-std::unique_ptr<ReturnStatement> Parser::parseStatement() {
+// Parse block item (statement or declaration)
+std::unique_ptr<BlockItem> Parser::parseBlockItem() {
+    if (peek().token == Token::INT) {
+        advance(); // consume 'int'
+        expect(Token::IDENTIFIER, "Expected identifier after 'int'");
+        std::string name = tokens[current - 1].word;
+
+        std::unique_ptr<Expression> init = nullptr;
+        if (match(Token::ASSIGN)) {
+            init = parseExpression(0);
+        }
+
+        expect(Token::SEMICOLON, "Expected ';' after declaration");
+
+        auto decl = std::make_unique<Declaration>(name, std::move(init));
+        return std::make_unique<BlockItem>(std::move(decl));
+    } else {
+        auto stmt = parseStatement();
+        return std::make_unique<BlockItem>(std::move(stmt));
+    }
+}
+
+// Parse statement
+std::unique_ptr<Statement> Parser::parseStatement() {
     log("Parsing statement");
-    if (!match(Token::RETURN)) error("Expected 'return' at beginning of statement", peek());
+
+    if (match(Token::RETURN)) {
+        // return <exp> ;
+        auto expr = parseExpression(0);
+        expect(Token::SEMICOLON, "Expected ';' after return expression");
+        log("Parsed return statement");
+        return std::make_unique<Statement>(std::move(expr), StatementType::RETURN);
+    }
+
+    if (peek().token == Token::SEMICOLON) {
+        // ;
+        advance();
+        log("Parsed empty statement");
+        return std::make_unique<Statement>(nullptr, StatementType::NULL_STMT);
+    }
+
+    // Try parsing <expression> ;
     auto expr = parseExpression(0);
-    if (!match(Token::SEMICOLON)) error("Expected ';' after return expression", peek());
-    log("Parsed return statement successfully");
-    return std::make_unique<ReturnStatement>(std::move(expr));
+    expect(Token::SEMICOLON, "Expected ';' after expression statement");
+    log("Parsed expression statement");
+    return std::make_unique<Statement>(std::move(expr), StatementType::EXPRESSION);
 }
 
-// Get precedence level of a binary operator
+
+// Get precedence level of binary operators
 int Parser::getPrecedence(Token token) {
     switch (token) {
         case Token::ADDITION:
@@ -109,6 +156,7 @@ int Parser::getPrecedence(Token token) {
         case Token::NOTEQUAL: return 30;
         case Token::AND: return 10;
         case Token::OR: return 5;
+        case Token::ASSIGN: return 1;
         default: return -1;
     }
 }
@@ -119,7 +167,7 @@ BinaryOpast Parser::tokenToBinaryOp(Token token) {
         case Token::ADDITION: return BinaryOpast::ADD;
         case Token::NEGATION: return BinaryOpast::SUBTRACT;
         case Token::MULTIPLICATION: return BinaryOpast::MULTIPLY;
-        case Token::DIVISION:   return BinaryOpast::DIVIDE;
+        case Token::DIVISION: return BinaryOpast::DIVIDE;
         case Token::REMAINDER: return BinaryOpast::REMAINDER;
         case Token::AND: return BinaryOpast::AND;
         case Token::OR: return BinaryOpast::OR;
@@ -134,7 +182,17 @@ BinaryOpast Parser::tokenToBinaryOp(Token token) {
     }
 }
 
-// parseExpression() with precedence
+// Convert token to UnaryOpast
+UnaryOpast Parser::tokenToUnaryOp(Token token) {
+    switch (token) {
+        case Token::COMPLEMENT: return UnaryOpast::COMPLEMENT;
+        case Token::NEGATION: return UnaryOpast::NEGATE;
+        case Token::NOT: return UnaryOpast::NOT;
+        default:
+            throw std::runtime_error("Unexpected unary operator token");
+    }
+}
+
 std::unique_ptr<Expression> Parser::parseExpression(int minPrecedence) {
     log("Parsing expression with precedence >= " + std::to_string(minPrecedence));
 
@@ -143,21 +201,26 @@ std::unique_ptr<Expression> Parser::parseExpression(int minPrecedence) {
     while (true) {
         Lex opToken = peek();
         int precedence = getPrecedence(opToken.token);
-
         if (precedence < minPrecedence) break;
 
         Token op = opToken.token;
-        advance();
 
-        std::unique_ptr<Expression> right = parseExpression(precedence + 1);
-
-        left = std::make_unique<Expression>(tokenToBinaryOp(op), std::move(left), std::move(right));
+        if (op == Token::ASSIGN) {
+            advance(); 
+            std::unique_ptr<Expression> right = parseExpression(precedence);
+            left = std::make_unique<Expression>(std::move(left), std::move(right)); 
+        } else {
+            advance(); 
+            std::unique_ptr<Expression> right = parseExpression(precedence + 1);
+            left = std::make_unique<Expression>(tokenToBinaryOp(op), std::move(left), std::move(right));
+        }
     }
 
     return left;
 }
 
-// parseFactor()
+
+// Parse factor
 std::unique_ptr<Expression> Parser::parseFactor() {
     log("Parsing factor");
     Lex currentToken = peek();
@@ -168,31 +231,29 @@ std::unique_ptr<Expression> Parser::parseFactor() {
         log("Parsed integer literal: " + std::to_string(value));
         return std::make_unique<Expression>(value);
     }
-    else if (currentToken.token == Token::COMPLEMENT || currentToken.token == Token::NEGATION || currentToken.token == Token::NOT) {
-        UnaryOpast unop;
-        if (currentToken.token == Token::COMPLEMENT) {
-            unop = UnaryOpast::COMPLEMENT;
-        } else if (currentToken.token == Token::NEGATION) {
-            unop = UnaryOpast::NEGATE;
-        } else {
-            unop = UnaryOpast::NOT;
-        }
+    else if (currentToken.token == Token::IDENTIFIER) {
+        advance();
+        log("Parsed identifier: " + currentToken.word);
+        return std::make_unique<Expression>(currentToken.word);
+    }
+    else if (currentToken.token == Token::COMPLEMENT ||
+             currentToken.token == Token::NEGATION ||
+             currentToken.token == Token::NOT) {
+
+        UnaryOpast unop = tokenToUnaryOp(currentToken.token);
         advance();
         std::unique_ptr<Expression> operand = parseFactor();
         log("Parsed unary operator: " + currentToken.word);
         return std::make_unique<Expression>(unop, std::move(operand));
     }
     else if (currentToken.token == Token::OPARENTHESIS) {
-        advance(); // consume '('
+        advance();
         std::unique_ptr<Expression> inner = parseExpression(0);
-        if (peek().token != Token::CPARENTHESIS) {
-            throw std::runtime_error("Expected ')' after expression");
-        }
-        advance(); // consume ')'
+        expect(Token::CPARENTHESIS, "Expected ')' after expression");
         log("Parsed parenthesized expression");
         return inner;
     }
     else {
-        throw std::runtime_error("Unexpected token in expression: " + currentToken.word);
+        error("Unexpected token in expression: " + currentToken.word, currentToken);
     }
 }

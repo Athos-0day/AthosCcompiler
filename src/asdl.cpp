@@ -272,28 +272,6 @@ std::string ASDLProgram::toASM() const {
     return functionDefinition->toASM();
 }
 
-// --- convertASTtoASDL (basic stub) ---
-
-std::unique_ptr<ASDLProgram> convertASTtoASDL(const std::unique_ptr<Program>& ast_program) {
-    const auto* prog = ast_program.get();
-    const auto* func = prog->function.get();
-
-    std::string funcName = func->name;
-
-    int returnValue = func->body->expression->value;
-
-    std::vector<std::unique_ptr<Instruction>> instructions;
-    instructions.push_back(std::make_unique<Mov>(
-        std::make_unique<Imm>(returnValue),
-        std::make_unique<Register>(Reg::AX)
-    ));
-
-    instructions.push_back(std::make_unique<Ret>());
-
-    auto funcDef = std::make_unique<FunctionDefinition>(funcName, std::move(instructions));
-    return std::make_unique<ASDLProgram>(std::move(funcDef));
-}
-
 std::unique_ptr<Operand> convertValToOperand(const std::unique_ptr<tacky::Val>& val) {
     if (auto c = dynamic_cast<const tacky::Constant*>(val.get())) {
         return std::make_unique<Imm>(c->value);
@@ -703,7 +681,27 @@ void legalizeMovMemoryToMemory(ASDLProgram& program) {
                     std::make_unique<Register>(Reg::R11),
                     std::unique_ptr<Operand>(dst->clone())
                 ));
-            } else {
+            } else if (op == BinaryOperator::MULT && srcIsMem && dstIsMem) {
+                // Ex: imull -8(%rbp), -12(%rbp) → temp = [dst]; temp *= [src]; dst = temp
+                legalizedInstructions.push_back(std::make_unique<Mov>(
+                    std::unique_ptr<Operand>(dst->clone()),
+                    std::make_unique<Register>(Reg::R11)
+                ));
+                legalizedInstructions.push_back(std::make_unique<Mov>(
+                    std::unique_ptr<Operand>(src->clone()),
+                    std::make_unique<Register>(Reg::R10)
+                ));
+                legalizedInstructions.push_back(std::make_unique<Binary>(
+                    op,
+                    std::make_unique<Register>(Reg::R10),
+                    std::make_unique<Register>(Reg::R11)
+                ));
+                legalizedInstructions.push_back(std::make_unique<Mov>(
+                    std::make_unique<Register>(Reg::R11),
+                    std::unique_ptr<Operand>(dst->clone())
+                ));
+            }
+            else {
                 legalizedInstructions.push_back(std::move(instr));
             }
 
@@ -771,13 +769,48 @@ void legalizeMovMemoryToMemory(ASDLProgram& program) {
 
 
 // --- writeASMToFile ---
-
 void writeASMToFile(const ASDLProgram& program, const std::string& filename) {
     std::ofstream ofs(filename);
     if (!ofs.is_open()) {
         throw std::runtime_error("Failed to open output file: " + filename);
     }
 
-    ofs << program.toASM();
+    std::string asmCode = program.toASM();
+
+    // Search for the '_main:' label
+    size_t mainPos = asmCode.find("_main:");
+    if (mainPos != std::string::npos) {
+        // Find where _main ends (next .globl or end of string)
+        size_t nextLabelPos = asmCode.find(".globl", mainPos + 1);
+        size_t endOfMain = (nextLabelPos != std::string::npos) ? nextLabelPos : asmCode.length();
+
+        // Extract _main body
+        std::string mainBody = asmCode.substr(mainPos, endOfMain - mainPos);
+
+        // Check if 'ret' is present
+        bool hasRet = mainBody.find("\n  ret") != std::string::npos;
+        bool hasRestoreStack = mainBody.find("movq %rbp, %rsp") != std::string::npos &&
+                               mainBody.find("popq %rbp") != std::string::npos;
+
+        // If 'ret' is missing, insert proper return sequence before end of _main
+        if (!hasRet) {
+            std::string retSequence;
+            if (!hasRestoreStack) {
+                retSequence += "  movq %rbp, %rsp\n  popq %rbp\n";
+            }
+            retSequence += "  movl $0, %eax\n  ret\n";
+
+            // Insert before end of _main block
+            size_t insertPos = asmCode.rfind('\n', endOfMain);
+            asmCode.insert(insertPos, "\n" + retSequence);
+        }
+    } else {
+        // Fallback: append full return sequence
+        asmCode.append("\n  movq %rbp, %rsp\n  popq %rbp\n  movl $0, %eax\n  ret");
+    }
+
+    ofs << asmCode;
     ofs.close();
 }
+
+

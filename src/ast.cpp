@@ -1,138 +1,136 @@
-#include <string>
-#include <memory>
-#include "lexer.hpp"
+#include "ast.hpp"
+#include <iostream>
 
 /**
- * @brief Enum class for expression type.
+ * @brief Print an expression.
  */
-enum class ExpressionType {
-    CONSTANT,
-    UNARY,
-    BINARY
-};
+void printExpression(const Expression* expr) {
+    if (!expr) return;
+
+    switch (expr->type) {
+        case ExpressionType::CONSTANT:
+            std::cout << expr->value;
+            break;
+
+        case ExpressionType::VAR:
+            std::cout << expr->identifier;
+            break;
+
+        case ExpressionType::UNARY:
+            std::cout << "(";
+            switch (expr->un_op) {
+                case UnaryOpast::COMPLEMENT: std::cout << "~"; break;
+                case UnaryOpast::NEGATE:     std::cout << "-"; break;
+                case UnaryOpast::NOT:        std::cout << "!"; break;
+            }
+            printExpression(expr->operand.get());
+            std::cout << ")";
+            break;
+
+        case ExpressionType::BINARY:
+            std::cout << "(";
+            printExpression(expr->operand1.get());
+
+            switch (expr->bin_op) {
+                case BinaryOpast::ADD: std::cout << " + "; break;
+                case BinaryOpast::SUBTRACT: std::cout << " - "; break;
+                case BinaryOpast::MULTIPLY: std::cout << " * "; break;
+                case BinaryOpast::DIVIDE: std::cout << " / "; break;
+                case BinaryOpast::REMAINDER: std::cout << " % "; break;
+                case BinaryOpast::AND: std::cout << " && "; break;
+                case BinaryOpast::OR: std::cout << " || "; break;
+                case BinaryOpast::EQUAL: std::cout << " == "; break;
+                case BinaryOpast::NOTEQUAL: std::cout << " != "; break;
+                case BinaryOpast::LESSTHAN: std::cout << " < "; break;
+                case BinaryOpast::LESSEQ: std::cout << " <= "; break;
+                case BinaryOpast::GREATERTHAN: std::cout << " > "; break;
+                case BinaryOpast::GREATEREQ: std::cout << " >= "; break;
+            }
+
+            printExpression(expr->operand2.get());
+            std::cout << ")";
+            break;
+
+        case ExpressionType::ASSIGNMENT:
+            std::cout << "(";
+            printExpression(expr->exp1.get());
+            std::cout << " = ";
+            printExpression(expr->exp2.get());
+            std::cout << ")";
+            break;
+    }
+}
 
 /**
- * @brief Enum class for unary operator.
+ * @brief Print a statement.
  */
-enum class UnaryOpast {
-    COMPLEMENT,
-    NEGATE,
-    NOT
-};
+void printStatement(const Statement* stmt) {
+    if (!stmt) return;
+
+    switch (stmt->type) {
+        case StatementType::RETURN:
+            std::cout << "return ";
+            printExpression(stmt->expression.get());
+            std::cout << ";" << std::endl;
+            break;
+
+        case StatementType::EXPRESSION:
+            printExpression(stmt->expression.get());
+            std::cout << ";" << std::endl;
+            break;
+
+        case StatementType::NULL_STMT:
+            std::cout << ";" << std::endl;
+            break;
+    }
+}
 
 /**
- * @brief Enum class for binary operator.
+ * @brief Print a declaration.
  */
-enum class BinaryOpast {
-    ADD,
-    SUBTRACT,
-    MULTIPLY,
-    DIVIDE,
-    REMAINDER,
-    AND,
-    OR,
-    EQUAL,
-    NOTEQUAL,
-    LESSTHAN,
-    LESSEQ,
-    GREATERTHAN,
-    GREATEREQ
-};
+void printDeclaration(const Declaration* decl) {
+    if (!decl) return;
+
+    std::cout << "int " << decl->name;
+    if (decl->initializer) {
+        std::cout << " = ";
+        printExpression(decl->initializer.get());
+    }
+    std::cout << ";" << std::endl;
+}
 
 /**
- * @brief Base class for all nodes in the Abstract Syntax Tree (AST).
+ * @brief Print a block item.
  */
-class ASTNode {
-public:
-    /**
-     * @brief Virtual destructor to allow proper cleanup of derived classes.
-     */
-    virtual ~ASTNode() = default;
-};
+void printBlockItem(const BlockItem* item) {
+    if (!item) return;
+
+    switch (item->type) {
+        case BlockItemType::STATEMENT:
+            printStatement(item->statement.get());
+            break;
+
+        case BlockItemType::DECLARATION:
+            printDeclaration(item->declaration.get());
+            break;
+    }
+}
 
 /**
- * @brief Represents an expression node.
+ * @brief Print a function.
  */
-class Expression : public ASTNode {
-public:
-    ExpressionType type;
-
-    // For constants
-    int value = 0;
-
-    // For unary expressions
-    UnaryOpast un_op;
-    std::unique_ptr<Expression> operand;
-
-    // For binary expressions
-    BinaryOpast bin_op;
-    std::unique_ptr<Expression> operand1;
-    std::unique_ptr<Expression> operand2;
-
-    // Constant constructor
-    Expression(int v)
-        : type(ExpressionType::CONSTANT), value(v) {}
-
-    // Unary expression constructor
-    Expression(UnaryOpast unaryOp, std::unique_ptr<Expression> expr)
-        : type(ExpressionType::UNARY), un_op(unaryOp), operand(std::move(expr)) {}
-
-    // Binary expression constructor
-    Expression(BinaryOpast binaryOp, std::unique_ptr<Expression> lhs, std::unique_ptr<Expression> rhs)
-        : type(ExpressionType::BINARY), bin_op(binaryOp), operand1(std::move(lhs)), operand2(std::move(rhs)) {}
-};
+void printFunction(const Function* func) {
+    std::cout << "int " << func->name << "(void) {" << std::endl;
+    for (const auto& item : func->body) {
+        printBlockItem(item.get());
+    }
+    std::cout << "}" << std::endl;
+}
 
 /**
- * @brief Represents a return statement node.
- * 
- * This corresponds to the grammar rule: ‹statement› ::= "return" ‹exp› ";"
+ * @brief Print a program.
  */
-class ReturnStatement : public ASTNode {
-public:
-    std::unique_ptr<Expression> expression; ///< Pointer to the expression being returned
+void printProgram(const Program* prog) {
+    printFunction(prog->function.get());
+}
 
-    /**
-     * @brief Constructs a ReturnStatement node.
-     * 
-     * @param expr The expression to be returned.
-     */
-    ReturnStatement(std::unique_ptr<Expression> expr) : expression(std::move(expr)) {}
-};
-
-/**
- * @brief Represents a function definition.
- * 
- * This corresponds to the grammar rule:
- * ‹function› ::= "int" ‹identifier› "(" "void" ")" "{" ‹statement› "}"
- */
-class Function : public ASTNode {
-public:
-    std::string name; ///< The function's identifier
-    std::unique_ptr<ReturnStatement> body; ///< Pointer to the function's body (a return statement)
-
-    /**
-     * @brief Constructs a Function node.
-     * 
-     * @param id The function name (identifier).
-     * @param stmt The function body (return statement).
-     */
-    Function(const std::string& id, std::unique_ptr<ReturnStatement> stmt)
-        : name(id), body(std::move(stmt)) {}
-};
-
-/**
- * @brief Represents the root program node.
- * 
- * This corresponds to the grammar rule: ‹program› ::= ‹function›
- */
-class Program : public ASTNode {
-public:
-    std::unique_ptr<Function> function; ///< Pointer to the function node
-
-    /**
-     * @brief Constructs a Program node.
-     * 
-     * @param func The top-level function of the program.
-     */
-    Program(std::unique_ptr<Function> func) : function(std::move(func)) {}
-};

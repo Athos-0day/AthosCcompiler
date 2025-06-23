@@ -14,7 +14,7 @@
  * 
  * It performs a post-order traversal of the AST expressions and
  * generates a flat list of TACKY instructions using temporary variables
- * for intermediate results.
+ * and labels for control flow constructs.
  */
 class Lowerer {
 private:
@@ -38,33 +38,54 @@ private:
     std::string newLabel(const std::string& base);
 
     /**
-     * @brief Recursively lower an AST Expression node to a TACKY Val.
-     * 
-     * If the expression is a constant, returns a Constant IR node.
-     * If it's a unary or binary operation, emits the appropriate instruction
-     * and returns a Var referencing the temporary result.
-     * 
-     * @param expr Pointer to the Expression AST node.
-     * @return A unique_ptr to the lowered TACKY Val.
-     */
-    std::unique_ptr<tacky::Val> lowerExpression(const Expression* expr);
-
-    /**
      * @brief Convert an AST binary operator to its TACKY equivalent.
      * 
-     * This avoids unsafe static_cast and ensures semantic correctness.
+     * Ensures semantic correctness in the translation process.
      * 
      * @param op The AST binary operator.
      * @return The corresponding TACKY binary operator.
      */
     tacky::BinaryOp toTackyBinaryOp(BinaryOpast op);
 
+    /**
+     * @brief Recursively lower an AST Expression node to a TACKY Val.
+     * 
+     * Handles constants, variables, unary/binary expressions,
+     * logical AND/OR with short-circuiting, and assignments.
+     * 
+     * @param expr Pointer to the AST Expression node.
+     * @return A unique_ptr to the lowered TACKY Val.
+     */
+    std::unique_ptr<tacky::Val> lowerExpression(const Expression* expr);
+
+    /**
+     * @brief Lower a single AST Statement into TACKY instructions.
+     * 
+     * Supported statement types: return, expression statements, null.
+     * 
+     * @param stmt Pointer to the AST Statement node.
+     */
+    void lowerStatement(const Statement* stmt);
+
+    /**
+     * @brief Lower a single BlockItem (either a declaration or statement).
+     * 
+     * For declarations, initializes the variable if an initializer is provided.
+     * 
+     * @param item Pointer to the BlockItem node.
+     */
+    void lowerBlockItem(const BlockItem* item);
+
+    /**
+     * @brief Lower the body of a Function node by lowering all its BlockItems.
+     * 
+     * @param fn Pointer to the Function AST node.
+     */
+    void lowerFunction(const Function* fn);
+
 public:
     /**
      * @brief Lower an entire AST Program node into a TACKY IR Program.
-     * 
-     * This method lowers the function, translates all expressions into instructions,
-     * and appends a Return instruction.
      * 
      * @param astProgram Pointer to the AST Program node.
      * @return A unique_ptr to the resulting TACKY IR Program.

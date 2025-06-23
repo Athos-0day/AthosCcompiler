@@ -16,6 +16,7 @@
  * - Unary Operator: complement, negation, decrement
  * - Binary Operator: addition, division, multiplication, remainder
  * - Logical and relational operators: and, or, equal, not equal, greater, less, greater or equal, less or equal
+ * - Assignment for local variable
  */
 
 #include <iostream>
@@ -61,7 +62,8 @@ enum class Token {
     LESS,           ///< Less '<'
     GREATER,        ///< Greater '>'
     LESSEQ,         ///< Less or Equal '<='
-    GREATEREQ       ///< Greater or Equal '>='
+    GREATEREQ,      ///< Greater or Equal '>='
+    ASSIGN          ///< Assignement '='
 };
 
 /**
@@ -115,6 +117,7 @@ std::string tokenToString(Token t) {
         case Token::GREATER: return "GREATER";
         case Token::LESSEQ: return "LESS OR EQUAL";
         case Token::GREATEREQ: return "GREATER OR EQUAL";
+        case Token::ASSIGN: return "ASSIGN";
         default: return "MISMATCH";
     }
 }
@@ -153,6 +156,7 @@ Token wordToToken(const std::string& word) {
     if (word == ">")        return Token::GREATER;
     if (word == "<=")       return Token::LESSEQ;
     if (word == ">=")       return Token::GREATEREQ;
+    if (word == "=")        return Token::ASSIGN;
 
     if (std::regex_match(word, std::regex(R"(\d+)"))) 
         return Token::CONSTANT;
@@ -238,6 +242,7 @@ std::vector<Lex> lexer(const std::string& filename, bool verbose = true) {
         {std::regex(R"(^[a-zA-Z_]\w*)"), Token::IDENTIFIER},
         {std::regex(R"(^\d+)"), Token::CONSTANT},
         {std::regex(R"(^\s+)"), Token::SKIP},
+        {std::regex(R"(^=)"), Token::ASSIGN},
         {std::regex(R"(^\S)"), Token::MISMATCH},
     };
 

@@ -11,11 +11,14 @@
 #include "asdl.hpp"
 #include "tacky.hpp"
 #include "lowerer.hpp"
+#include "validate.hpp"
+
 
 void print_help() {
     std::cout << "Usage:\n";
     std::cout << "  ./compiler --lex <source_file>      # Run the lexer only\n";
     std::cout << "  ./compiler --parse <source_file>    # Run the lexer and parser with verbose logs\n";
+    std::cout << "  ./compiler --validate <source_file> # Run semantic validation\n";
     std::cout << "  ./compiler --tacky <source_file>    # Lower to TACKY intermediate code and print\n";
     std::cout << "  ./compiler --codegen <source_file>  # Generate assembly from parsed AST\n";
     std::cout << "  ./compiler <source_file>            # Compile and link (default behavior)\n";
@@ -57,6 +60,18 @@ int main(int argc, char* argv[]) {
             parser.parseProgram();
             std::cout << "Parsing completed successfully.\n";
 
+        } else if (mode == "--validate") {
+            std::cout << "Running semantic validation on: " << filepath << "\n";
+
+            auto lex = lexer(filepath, /*verbose=*/false);
+            Parser parser(lex, /*verbose=*/false);
+            auto program = parser.parseProgram();
+
+            validate_verbose = true;
+
+            resolve_program(program.get());
+
+            std::cout << "Semantic validation completed successfully.\n";
         } else if (mode == "--tacky") {
             std::cout << "Lowering AST to TACKY for: " << filepath << "\n";
             auto lex = lexer(filepath, false);
@@ -101,20 +116,16 @@ int main(int argc, char* argv[]) {
 
             ASDLProgram asdlProgram = convertTackyToASDL(*tackyProgram);
             int stackOffset = replacePseudosWithStack(asdlProgram);
-            insertAllocateStack(asdlProgram,stackOffset); 
+            insertAllocateStack(asdlProgram, -stackOffset); 
             legalizeMovMemoryToMemory(asdlProgram);
 
             const std::string asm_filename = "out.s";
-            std::ofstream ofs(asm_filename);
-            if (!ofs.is_open()) {
-                std::cerr << "Could not write assembly to " << asm_filename << "\n";
+            try {
+                writeASMToFile(asdlProgram, asm_filename);
+            } catch (const std::exception& e) {
+                std::cerr << "Error while writing assembly: " << e.what() << "\n";
                 return 1;
             }
-
-            std::string asmCode = asdlProgram.toASM();
-
-            ofs << asmCode;
-            ofs.close();
 
             std::string exec_name = filepath;
             size_t last_slash = exec_name.find_last_of("/\\");
@@ -132,7 +143,6 @@ int main(int argc, char* argv[]) {
             }
 
             std::cout << "Compilation succeeded. Executable is '" << exec_name << "'\n";
-
         } else {
             std::cerr << "Unknown option: " << mode << "\n";
             print_help();

@@ -4,6 +4,7 @@
 #include <string>
 #include <memory>
 #include "lexer.hpp"
+#include <vector>
 
 /**
  * @brief Enum class for expression type.
@@ -11,7 +12,26 @@
 enum class ExpressionType {
     CONSTANT,
     UNARY,
-    BINARY
+    BINARY,
+    VAR,
+    ASSIGNMENT
+};
+
+/**
+ * @brief Enum class for block item type.
+ */
+enum class BlockItemType {
+    STATEMENT,
+    DECLARATION
+};
+
+/**
+ * @brief Enum class for statement type.
+ */
+enum class StatementType {
+    RETURN,
+    EXPRESSION,
+    NULL_STMT
 };
 
 /**
@@ -69,6 +89,13 @@ public:
     std::unique_ptr<Expression> operand1;
     std::unique_ptr<Expression> operand2;
 
+    //For var expressions
+    std::string identifier;
+
+    //For assignment expressions
+    std::unique_ptr<Expression> exp1; 
+    std::unique_ptr<Expression> exp2;
+
     // Constant constructor
     Expression(int v)
         : type(ExpressionType::CONSTANT), value(v) {}
@@ -80,28 +107,78 @@ public:
     // Binary expression constructor
     Expression(BinaryOpast binaryOp, std::unique_ptr<Expression> lhs, std::unique_ptr<Expression> rhs)
         : type(ExpressionType::BINARY), bin_op(binaryOp), operand1(std::move(lhs)), operand2(std::move(rhs)) {}
+
+    // Var constructor 
+    Expression(std::string id) 
+        : type(ExpressionType::VAR), identifier(id) {}
+    
+    //Assignment constructor 
+    Expression(std::unique_ptr<Expression> lhs, std::unique_ptr<Expression> rhs)
+        : type(ExpressionType::ASSIGNMENT), exp1(std::move(lhs)), exp2(std::move(rhs)) {}
 };
 
 /**
  * @brief Represents a return statement node.
  */
-class ReturnStatement : public ASTNode {
+class Statement : public ASTNode {
 public:
+    StatementType type;
+
+    //For return expressions
     std::unique_ptr<Expression> expression;
 
-    ReturnStatement(std::unique_ptr<Expression> expr) : expression(std::move(expr)) {}
+    // Constructor for return or expression statement
+    Statement(std::unique_ptr<Expression> expr, StatementType type)
+        : type(type), expression(std::move(expr)) {}
+
+    // Constructor for NULL_STMT
+    Statement(StatementType type)
+        : type(type), expression(nullptr) {}
 };
 
 /**
- * @brief Represents a function definition.
+ * @brief Represents a variable declaration.
+ */
+class Declaration : public ASTNode {
+public:
+    std::string name;
+    std::unique_ptr<Expression> initializer; // optional
+
+    // Constructor for declaration with optional initializer
+    Declaration(const std::string& id, std::unique_ptr<Expression> init = nullptr)
+        : name(id), initializer(std::move(init)) {}
+};
+
+/**
+ * @brief Represents either a statement or a declaration in a block.
+ */
+class BlockItem : public ASTNode {
+public:
+    BlockItemType type;
+
+    std::unique_ptr<Statement> statement;
+    std::unique_ptr<Declaration> declaration;
+
+    // Constructor for statement
+    BlockItem(std::unique_ptr<Statement> stmt)
+        : type(BlockItemType::STATEMENT), statement(std::move(stmt)) {}
+
+    // Constructor for declaration
+    BlockItem(std::unique_ptr<Declaration> decl)
+        : type(BlockItemType::DECLARATION), declaration(std::move(decl)) {}
+};
+
+
+/**
+ * @brief Represents a function definition with a list of block items.
  */
 class Function : public ASTNode {
 public:
     std::string name;
-    std::unique_ptr<ReturnStatement> body;
+    std::vector<std::unique_ptr<BlockItem>> body;
 
-    Function(const std::string& id, std::unique_ptr<ReturnStatement> stmt)
-        : name(id), body(std::move(stmt)) {}
+    Function(const std::string& id, std::vector<std::unique_ptr<BlockItem>>&& items)
+        : name(id), body(std::move(items)) {}
 };
 
 /**

@@ -34,7 +34,6 @@ tacky::BinaryOp Lowerer::toTackyBinaryOp(BinaryOpast op) {
 std::unique_ptr<tacky::Val> Lowerer::lowerExpression(const Expression* expr) {
     // Binary operation
     if (expr->operand1 && expr->operand2) {
-        // Special case for short-circuit AND (&&)
         if (expr->bin_op == BinaryOpast::AND) {
             auto v1 = lowerExpression(expr->operand1.get());
             std::string result = newTemp();
@@ -67,7 +66,6 @@ std::unique_ptr<tacky::Val> Lowerer::lowerExpression(const Expression* expr) {
             return std::make_unique<tacky::Var>(result);
         }
 
-        // Special case for short-circuit OR (||)
         if (expr->bin_op == BinaryOpast::OR) {
             auto v1 = lowerExpression(expr->operand1.get());
             std::string result = newTemp();
@@ -100,13 +98,12 @@ std::unique_ptr<tacky::Val> Lowerer::lowerExpression(const Expression* expr) {
             return std::make_unique<tacky::Var>(result);
         }
 
-        // Standard binary operation
+        // Standard binary op
         auto lhs = lowerExpression(expr->operand1.get());
         auto rhs = lowerExpression(expr->operand2.get());
         auto tmpName = newTemp();
 
         tacky::BinaryOp op = toTackyBinaryOp(expr->bin_op);
-
         instructions.push_back(std::make_unique<tacky::Binary>(
             op,
             std::move(lhs),
@@ -117,41 +114,99 @@ std::unique_ptr<tacky::Val> Lowerer::lowerExpression(const Expression* expr) {
         return std::make_unique<tacky::Var>(tmpName);
     }
 
-    // Constant literal
-    if (!expr->operand) {
+    // Constant
+    if (!expr->operand && expr->type == ExpressionType::CONSTANT) {
         return std::make_unique<tacky::Constant>(expr->value);
     }
 
-    // Unary operation
-    auto src = lowerExpression(expr->operand.get());
-    auto tmpName = newTemp();
-
-    tacky::UnaryOp op;
-    switch (expr->un_op) {
-        case UnaryOpast::COMPLEMENT: op = tacky::UnaryOp::Complement; break;
-        case UnaryOpast::NEGATE:     op = tacky::UnaryOp::Negate;     break;
-        case UnaryOpast::NOT:        op = tacky::UnaryOp::Not;        break;
-        default:
-            throw std::runtime_error("Unknown UnaryOpast in lowerExpression");
+    // Variable
+    if (expr->type == ExpressionType::VAR) {
+        return std::make_unique<tacky::Var>(expr->identifier);
     }
 
-    instructions.push_back(std::make_unique<tacky::Unary>(
-        op,
-        std::move(src),
-        std::make_unique<tacky::Var>(tmpName)
-    ));
+    // Assignment (only var = expr form supported)
+    if (expr->type == ExpressionType::ASSIGNMENT && expr->exp1->type == ExpressionType::VAR) {
+        auto rhs = lowerExpression(expr->exp2.get());
+        std::string lhsName = expr->exp1->identifier;
 
-    return std::make_unique<tacky::Var>(tmpName);
+        instructions.push_back(std::make_unique<tacky::Copy>(
+            std::move(rhs),
+            std::make_unique<tacky::Var>(lhsName)
+        ));
+
+        return std::make_unique<tacky::Var>(lhsName);
+    }
+
+    // Unary
+    if (expr->operand) {
+        auto src = lowerExpression(expr->operand.get());
+        auto tmpName = newTemp();
+
+        tacky::UnaryOp op;
+        switch (expr->un_op) {
+            case UnaryOpast::COMPLEMENT: op = tacky::UnaryOp::Complement; break;
+            case UnaryOpast::NEGATE:     op = tacky::UnaryOp::Negate;     break;
+            case UnaryOpast::NOT:        op = tacky::UnaryOp::Not;        break;
+            default:
+                throw std::runtime_error("Unknown UnaryOpast in lowerExpression");
+        }
+
+        instructions.push_back(std::make_unique<tacky::Unary>(
+            op,
+            std::move(src),
+            std::make_unique<tacky::Var>(tmpName)
+        ));
+
+        return std::make_unique<tacky::Var>(tmpName);
+    }
+
+    throw std::runtime_error("Unhandled expression type");
+}
+
+void Lowerer::lowerStatement(const Statement* stmt) {
+    switch (stmt->type) {
+        case StatementType::RETURN: {
+            auto val = lowerExpression(stmt->expression.get());
+            instructions.push_back(std::make_unique<tacky::Return>(std::move(val)));
+            break;
+        }
+        case StatementType::EXPRESSION: {
+            lowerExpression(stmt->expression.get());
+            break;
+        }
+        case StatementType::NULL_STMT:
+            break;
+    }
+}
+
+void Lowerer::lowerBlockItem(const BlockItem* item) {
+    if (item->type == BlockItemType::STATEMENT) {
+        lowerStatement(item->statement.get());
+    } else if (item->type == BlockItemType::DECLARATION) {
+        std::string varName = item->declaration->name;
+
+        if (item->declaration->initializer) {
+            auto val = lowerExpression(item->declaration->initializer.get());
+            instructions.push_back(std::make_unique<tacky::Copy>(
+                std::move(val),
+                std::make_unique<tacky::Var>(varName)
+            ));
+        }
+    }
+}
+
+void Lowerer::lowerFunction(const Function* fn) {
+    for (const auto& item : fn->body) {
+        lowerBlockItem(item.get());
+    }
 }
 
 std::unique_ptr<tacky::Program> Lowerer::lower(const Program* astProgram) {
     auto func = std::make_unique<tacky::Function>(astProgram->function->name);
-    const ReturnStatement* ret = astProgram->function->body.get();
 
-    auto val = lowerExpression(ret->expression.get());
+    lowerFunction(astProgram->function.get());
 
     func->body = std::move(instructions);
-    func->body.push_back(std::make_unique<tacky::Return>(std::move(val)));
 
     return std::make_unique<tacky::Program>(std::move(func));
 }

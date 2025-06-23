@@ -78,6 +78,22 @@ private:
      */
     BinaryOpast tokenToBinaryOp(Token token);
 
+        /**
+     * @brief Converts a token representing a unary operator into its AST equivalent.
+     *
+     * Recognized unary operators are:
+     *   - '~' (bitwise complement) → UnaryOpast::COMPLEMENT
+     *   - '-' (negation) → UnaryOpast::NEGATE
+     *   - '!' (logical not) → UnaryOpast::NOT
+     *
+     * This is used when parsing unary expressions to build the correct AST node.
+     *
+     * @param token Token to convert (must be a unary operator).
+     * @return Corresponding UnaryOpast enum value.
+     * @throws std::runtime_error If the token is not a supported unary operator.
+     */
+    UnaryOpast tokenToUnaryOp(Token token);
+
 public:
     /**
      * @brief Constructs the parser with tokens and optional verbose mode.
@@ -119,12 +135,26 @@ public:
      */
     std::unique_ptr<Function> parseFunction();
 
+        /**
+     * @brief Parses a ‹block-item› inside a function body.
+     *
+     * A block item can currently be:
+     *   - a declaration
+     *   - a statement
+     *
+     * Future extensions might allow variable declarations or compound statements.
+     *
+     * @return Unique pointer to a BlockItem AST node.
+     * @throws std::runtime_error If the block item is not recognized.
+     */
+    std::unique_ptr<BlockItem> parseBlockItem();
+
     /**
      * @brief Parses a ‹statement› according to the grammar.
      * @return Unique pointer to the ReturnStatement AST node.
      * @throws std::runtime_error If parsing fails.
      */
-    std::unique_ptr<ReturnStatement> parseStatement();
+    std::unique_ptr<Statement> parseStatement();
 
     /**
      * @brief Parses an ‹exp› according to the grammar with default precedence.
