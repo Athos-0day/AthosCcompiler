@@ -1,3 +1,4 @@
+
 # Mini C Compiler
 
 A small compiler written in C++ that handles a minimal subset of the C language.
@@ -52,6 +53,19 @@ These can be used inside expressions within the `return` statement, e.g.:
 ```c
 int main(void) {
     return !(5 + 3 < 10) && (2 == 2 || 0);
+}
+```
+
+### Local variables support
+
+The compiler also supports local variables of type `int`, for example:
+
+```c
+int main(void) {
+    int a = 10;
+    int b = 20;
+    int c = a + b;
+    return c;
 }
 ```
 
