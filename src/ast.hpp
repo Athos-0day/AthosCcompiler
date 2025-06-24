@@ -14,7 +14,8 @@ enum class ExpressionType {
     UNARY,
     BINARY,
     VAR,
-    ASSIGNMENT
+    ASSIGNMENT,
+    CONDITIONAL
 };
 
 /**
@@ -31,7 +32,8 @@ enum class BlockItemType {
 enum class StatementType {
     RETURN,
     EXPRESSION,
-    NULL_STMT
+    NULL_STMT,
+    IF
 };
 
 /**
@@ -89,12 +91,17 @@ public:
     std::unique_ptr<Expression> operand1;
     std::unique_ptr<Expression> operand2;
 
-    //For var expressions
+    // For var expressions
     std::string identifier;
 
-    //For assignment expressions
-    std::unique_ptr<Expression> exp1; 
+    // For assignment expressions
+    std::unique_ptr<Expression> exp1;
     std::unique_ptr<Expression> exp2;
+
+    // For conditional expressions
+    std::unique_ptr<Expression> condition;
+    std::unique_ptr<Expression> trueExpr;
+    std::unique_ptr<Expression> falseExpr;
 
     // Constant constructor
     Expression(int v)
@@ -111,29 +118,52 @@ public:
     // Var constructor 
     Expression(std::string id) 
         : type(ExpressionType::VAR), identifier(id) {}
-    
-    //Assignment constructor 
+
+    // Assignment constructor 
     Expression(std::unique_ptr<Expression> lhs, std::unique_ptr<Expression> rhs)
         : type(ExpressionType::ASSIGNMENT), exp1(std::move(lhs)), exp2(std::move(rhs)) {}
+
+    // Conditional (ternary) constructor: condition ? trueExpr : falseExpr
+    Expression(std::unique_ptr<Expression> cond,
+               std::unique_ptr<Expression> tExpr,
+               std::unique_ptr<Expression> fExpr)
+        : type(ExpressionType::CONDITIONAL),
+          condition(std::move(cond)),
+          trueExpr(std::move(tExpr)),
+          falseExpr(std::move(fExpr)) {}
 };
 
 /**
- * @brief Represents a return statement node.
+ * @brief Represents a statement node, including return, expression, null, and if statements.
  */
 class Statement : public ASTNode {
 public:
     StatementType type;
 
-    //For return expressions
+    // For return or expression statements
     std::unique_ptr<Expression> expression;
 
-    // Constructor for return or expression statement
+    // For IF statement
+    std::unique_ptr<Expression> condition;          ///< Condition expression
+    std::unique_ptr<Statement> thenBranch;          ///< Statement to execute if condition is true
+    std::unique_ptr<Statement> elseBranch;          ///< Optional else branch
+
+    // Constructor for return or expression statements
     Statement(std::unique_ptr<Expression> expr, StatementType type)
         : type(type), expression(std::move(expr)) {}
 
-    // Constructor for NULL_STMT
+    // Constructor for null statements
     Statement(StatementType type)
-        : type(type), expression(nullptr) {}
+        : type(type) {}
+
+    // Constructor for IF statement
+    Statement(std::unique_ptr<Expression> cond,
+              std::unique_ptr<Statement> thenStmt,
+              std::unique_ptr<Statement> elseStmt = nullptr)
+        : type(StatementType::IF),
+          condition(std::move(cond)),
+          thenBranch(std::move(thenStmt)),
+          elseBranch(std::move(elseStmt)) {}
 };
 
 /**

@@ -137,6 +137,38 @@ std::unique_ptr<tacky::Val> Lowerer::lowerExpression(const Expression* expr) {
         return std::make_unique<tacky::Var>(lhsName);
     }
 
+    if (expr->type == ExpressionType::CONDITIONAL) {
+        auto dst = newTemp();  // temporary variable to hold the result
+
+        std::string elseLabel = newLabel("cond_else");
+        std::string endLabel = newLabel("cond_end");
+
+        // Lower the condition expression
+        auto condVal = lowerExpression(expr->condition.get());
+
+        // If condition is false, jump to else
+        instructions.push_back(std::make_unique<tacky::JumpIfZero>(std::move(condVal), elseLabel));
+
+        // True branch: evaluate and copy to dst
+        auto trueVal = lowerExpression(expr->trueExpr.get());
+        instructions.push_back(std::make_unique<tacky::Copy>(std::move(trueVal), std::make_unique<tacky::Var>(dst)));
+
+        instructions.push_back(std::make_unique<tacky::Jump>(endLabel));
+
+        // Else label
+        instructions.push_back(std::make_unique<tacky::Label>(elseLabel));
+
+        // False branch: evaluate and copy to dst
+        auto falseVal = lowerExpression(expr->falseExpr.get());
+        instructions.push_back(std::make_unique<tacky::Copy>(std::move(falseVal), std::make_unique<tacky::Var>(dst)));
+
+        // End label
+        instructions.push_back(std::make_unique<tacky::Label>(endLabel));
+
+        return std::make_unique<tacky::Var>(dst);
+    }
+
+
     // Unary
     if (expr->operand) {
         auto src = lowerExpression(expr->operand.get());
@@ -174,6 +206,36 @@ void Lowerer::lowerStatement(const Statement* stmt) {
             lowerExpression(stmt->expression.get());
             break;
         }
+        case StatementType::IF: {
+            auto condVal = lowerExpression(stmt->condition.get());
+
+            std::string elseLabel = newLabel("else");
+            std::string endLabel = newLabel("endif");
+
+            if (stmt->elseBranch) {
+                instructions.push_back(std::make_unique<tacky::JumpIfZero>(std::move(condVal), elseLabel));
+
+                lowerStatement(stmt->thenBranch.get());
+
+                instructions.push_back(std::make_unique<tacky::Jump>(endLabel));
+
+                instructions.push_back(std::make_unique<tacky::Label>(elseLabel));
+
+                lowerStatement(stmt->elseBranch.get());
+                instructions.push_back(std::make_unique<tacky::Label>(endLabel));
+            } else {
+                instructions.push_back(std::make_unique<tacky::JumpIfZero>(std::move(condVal), endLabel));
+
+                lowerStatement(stmt->thenBranch.get());
+
+                instructions.push_back(std::make_unique<tacky::Jump>(endLabel));
+
+                instructions.push_back(std::make_unique<tacky::Label>(endLabel));
+            }
+
+            break;
+        }
+
         case StatementType::NULL_STMT:
             break;
     }

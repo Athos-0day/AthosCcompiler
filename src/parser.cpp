@@ -125,6 +125,27 @@ std::unique_ptr<Statement> Parser::parseStatement() {
         return std::make_unique<Statement>(std::move(expr), StatementType::RETURN);
     }
 
+    if (match(Token::IF)) {
+        expect(Token::OPARENTHESIS, "Expected '(' after 'if'");
+        auto condition = parseExpression(0);
+        expect(Token::CPARENTHESIS, "Expected ')' after condition");
+
+        auto thenStmt = parseStatement();
+
+        std::unique_ptr<Statement> elseStmt = nullptr;
+        if (match(Token::ELSE)) {
+            elseStmt = parseStatement();
+        }
+
+        log("Parsed if statement");
+        return std::make_unique<Statement>(
+            std::move(condition),
+            std::move(thenStmt),
+            std::move(elseStmt)
+        );
+    }
+
+
     if (peek().token == Token::SEMICOLON) {
         // ;
         advance();
@@ -156,6 +177,7 @@ int Parser::getPrecedence(Token token) {
         case Token::NOTEQUAL: return 30;
         case Token::AND: return 10;
         case Token::OR: return 5;
+        case Token::QUESTION_MARK: return 3;
         case Token::ASSIGN: return 1;
         default: return -1;
     }
@@ -200,17 +222,46 @@ std::unique_ptr<Expression> Parser::parseExpression(int minPrecedence) {
 
     while (true) {
         Lex opToken = peek();
-        int precedence = getPrecedence(opToken.token);
-        if (precedence < minPrecedence) break;
-
         Token op = opToken.token;
 
+        // Special handling for conditional operator (ternary ?:)
+        if (op == Token::QUESTION_MARK) {
+            if (minPrecedence > getPrecedence(Token::QUESTION_MARK)) {
+                break;
+            }
+
+            advance();  // consume '?'
+            log("Parsing true branch of conditional expression");
+
+            std::unique_ptr<Expression> trueExpr = parseExpression(1); // higher than ?:
+
+            if (peek().token != Token::COLON) {
+                error("Expected ':' in conditional expression", peek());
+            }
+
+            advance();  // consume ':'
+            log("Parsing false branch of conditional expression");
+
+            std::unique_ptr<Expression> falseExpr = parseExpression(1); // same level as trueExpr
+
+            if (!left || !trueExpr || !falseExpr) {
+                error("Incomplete conditional expression", opToken);
+            }
+
+            left = std::make_unique<Expression>(std::move(left), std::move(trueExpr), std::move(falseExpr));
+            log("Parsed conditional expression");
+            continue;
+        }
+
+        int precedence = getPrecedence(op);
+        if (precedence < minPrecedence) break;
+
+        advance();  // consume operator
+
         if (op == Token::ASSIGN) {
-            advance(); 
             std::unique_ptr<Expression> right = parseExpression(precedence);
-            left = std::make_unique<Expression>(std::move(left), std::move(right)); 
+            left = std::make_unique<Expression>(std::move(left), std::move(right));
         } else {
-            advance(); 
             std::unique_ptr<Expression> right = parseExpression(precedence + 1);
             left = std::make_unique<Expression>(tokenToBinaryOp(op), std::move(left), std::move(right));
         }
@@ -218,7 +269,6 @@ std::unique_ptr<Expression> Parser::parseExpression(int minPrecedence) {
 
     return left;
 }
-
 
 // Parse factor
 std::unique_ptr<Expression> Parser::parseFactor() {
@@ -255,5 +305,6 @@ std::unique_ptr<Expression> Parser::parseFactor() {
     }
     else {
         error("Unexpected token in expression: " + currentToken.word, currentToken);
+        return nullptr;
     }
 }

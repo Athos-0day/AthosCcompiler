@@ -17,6 +17,7 @@
  * - Binary Operator: addition, division, multiplication, remainder
  * - Logical and relational operators: and, or, equal, not equal, greater, less, greater or equal, less or equal
  * - Assignment for local variable
+ * - Conditional statement
  */
 
 #include <iostream>
@@ -63,7 +64,11 @@ enum class Token {
     GREATER,        ///< Greater '>'
     LESSEQ,         ///< Less or Equal '<='
     GREATEREQ,      ///< Greater or Equal '>='
-    ASSIGN          ///< Assignement '='
+    ASSIGN,         ///< Assignement '='
+    IF,             ///< If 'if'
+    ELSE,           ///< Else 'else'
+    COLON,          ///< Colon ':'
+    QUESTION_MARK   ///< Question mark '?'
 };
 
 /**
@@ -118,6 +123,10 @@ std::string tokenToString(Token t) {
         case Token::LESSEQ: return "LESS OR EQUAL";
         case Token::GREATEREQ: return "GREATER OR EQUAL";
         case Token::ASSIGN: return "ASSIGN";
+        case Token::IF: return "IF";
+        case Token::ELSE: return "ELSE";
+        case Token::COLON: return "COLON";
+        case Token::QUESTION_MARK: return "QUESTION_MARK";
         default: return "MISMATCH";
     }
 }
@@ -157,6 +166,10 @@ Token wordToToken(const std::string& word) {
     if (word == "<=")       return Token::LESSEQ;
     if (word == ">=")       return Token::GREATEREQ;
     if (word == "=")        return Token::ASSIGN;
+    if (word == "if")       return Token::IF;
+    if (word == "else")     return Token::ELSE;
+    if (word == ":")        return Token::COLON;
+    if (word == "?")        return Token::QUESTION_MARK;
 
     if (std::regex_match(word, std::regex(R"(\d+)"))) 
         return Token::CONSTANT;
@@ -239,10 +252,17 @@ std::vector<Lex> lexer(const std::string& filename, bool verbose = true) {
         {std::regex(R"(^<)"), Token::LESS},
         {std::regex(R"(^>)"), Token::GREATER},
         {std::regex(R"(^\d+[a-zA-Z_]\w*)"), Token::MISMATCH}, // invalid token like 123abc
+        {std::regex(R"(^\bif\b)"), Token::IF},
+        {std::regex(R"(^\belse\b)"), Token::ELSE},
+        {std::regex(R"(^\bint\b)"), Token::INT},
+        {std::regex(R"(^\bvoid\b)"), Token::VOID},
+        {std::regex(R"(^\breturn\b)"), Token::RETURN},
         {std::regex(R"(^[a-zA-Z_]\w*)"), Token::IDENTIFIER},
         {std::regex(R"(^\d+)"), Token::CONSTANT},
         {std::regex(R"(^\s+)"), Token::SKIP},
         {std::regex(R"(^=)"), Token::ASSIGN},
+        {std::regex(R"(^:)"), Token::COLON},
+        {std::regex(R"(^\?)"), Token::QUESTION_MARK},
         {std::regex(R"(^\S)"), Token::MISMATCH},
     };
 

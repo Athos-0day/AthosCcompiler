@@ -25,9 +25,6 @@ void log(const std::string& msg) {
     throw std::runtime_error("Semantic error: " + msg);
 }
 
-/**
- * @brief Resolve an expression recursively and replace variable names with unique ones.
- */
 std::unique_ptr<Expression> resolve_exp(const Expression* expr, const VarMap& varMap) {
     switch (expr->type) {
         case ExpressionType::CONSTANT:
@@ -67,6 +64,18 @@ std::unique_ptr<Expression> resolve_exp(const Expression* expr, const VarMap& va
             auto lhs = std::make_unique<Expression>(it->second);
             auto rhs = resolve_exp(expr->exp2.get(), varMap);
             return std::make_unique<Expression>(std::move(lhs), std::move(rhs));
+        }
+
+        case ExpressionType::CONDITIONAL: {
+            if (!expr->condition || !expr->trueExpr || !expr->falseExpr) {
+                error("Incomplete conditional expression");
+            }
+
+            auto condition = resolve_exp(expr->condition.get(), varMap);
+            auto thenExpr = resolve_exp(expr->trueExpr.get(), varMap);
+            auto elseExpr = resolve_exp(expr->falseExpr.get(), varMap);
+
+            return std::make_unique<Expression>(std::move(condition), std::move(thenExpr), std::move(elseExpr));
         }
 
         default:
@@ -112,6 +121,15 @@ void resolve_statement(Statement* stmt, VarMap& varMap) {
 
         case StatementType::NULL_STMT:
             log("Empty/null statement");
+            break;
+
+        case StatementType::IF:
+            log("Resolving if statement");
+            stmt->condition = resolve_exp(stmt->condition.get(), varMap);
+            resolve_statement(stmt->thenBranch.get(), varMap);
+            if (stmt->elseBranch) {
+                resolve_statement(stmt->elseBranch.get(), varMap);
+            }
             break;
 
         default:

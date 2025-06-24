@@ -474,8 +474,8 @@ ASDLProgram convertTackyToASDL(const tacky::Program& tackyProgram) {
                 }
 
                 asdlInstructions.push_back(std::make_unique<Cmp>(
-                    std::move(src2),
-                    std::move(src1)
+                    std::move(src1),
+                    std::move(src2)
                 ));
 
                 asdlInstructions.push_back(std::make_unique<Mov>(
@@ -777,36 +777,25 @@ void writeASMToFile(const ASDLProgram& program, const std::string& filename) {
 
     std::string asmCode = program.toASM();
 
-    // Search for the '_main:' label
-    size_t mainPos = asmCode.find("_main:");
-    if (mainPos != std::string::npos) {
-        // Find where _main ends (next .globl or end of string)
-        size_t nextLabelPos = asmCode.find(".globl", mainPos + 1);
-        size_t endOfMain = (nextLabelPos != std::string::npos) ? nextLabelPos : asmCode.length();
+    // Trim trailing whitespace
+    while (!asmCode.empty() && std::isspace(asmCode.back())) {
+        asmCode.pop_back();
+    }
 
-        // Extract _main body
-        std::string mainBody = asmCode.substr(mainPos, endOfMain - mainPos);
+    // Get the last non-empty line
+    size_t lastLineStart = asmCode.find_last_of('\n');
+    std::string lastLine = asmCode.substr(lastLineStart + 1);
+    while (lastLine.empty() && lastLineStart != std::string::npos) {
+        asmCode.erase(lastLineStart);
+        lastLineStart = asmCode.find_last_of('\n');
+        lastLine = asmCode.substr(lastLineStart + 1);
+    }
 
-        // Check if 'ret' is present
-        bool hasRet = mainBody.find("\n  ret") != std::string::npos;
-        bool hasRestoreStack = mainBody.find("movq %rbp, %rsp") != std::string::npos &&
-                               mainBody.find("popq %rbp") != std::string::npos;
+    bool endsWithRet = lastLine.find("ret") != std::string::npos;
 
-        // If 'ret' is missing, insert proper return sequence before end of _main
-        if (!hasRet) {
-            std::string retSequence;
-            if (!hasRestoreStack) {
-                retSequence += "  movq %rbp, %rsp\n  popq %rbp\n";
-            }
-            retSequence += "  movl $0, %eax\n  ret\n";
-
-            // Insert before end of _main block
-            size_t insertPos = asmCode.rfind('\n', endOfMain);
-            asmCode.insert(insertPos, "\n" + retSequence);
-        }
-    } else {
-        // Fallback: append full return sequence
-        asmCode.append("\n  movq %rbp, %rsp\n  popq %rbp\n  movl $0, %eax\n  ret");
+    if (!endsWithRet) {
+        // Add return sequence only if no unconditional ret at end
+        asmCode += "\n  movq %rbp, %rsp\n  popq %rbp\n  movl $0, %eax\n  ret";
     }
 
     ofs << asmCode;
