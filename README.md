@@ -1,4 +1,3 @@
-
 # Mini C Compiler
 
 A small compiler written in C++ that handles a minimal subset of the C language.
@@ -22,14 +21,34 @@ int main(void) {
 }
 ```
 
-In addition, the compiler supports basic **unary and binary operations**, including:
+In addition, the compiler supports:
 
-### Unary operators:
+### Control Flow:
+- `if`, `else if`, and `else` statements  
+  ```c
+  int main(void) {
+      int x = 1;
+      if (x)
+          return 10;
+      else
+          return 20;
+  }
+  ```
+
+- Conditional expressions (ternary operator)  
+  ```c
+  int main(void) {
+      int x = 5;
+      return (x > 3) ? 1 : 0;
+  }
+  ```
+
+### Unary Operators:
 - `-x` (negation)
 - `~x` (bitwise NOT)
 - `!x` (logical NOT)
 
-### Binary operators:
+### Binary Operators:
 
 #### Arithmetic:
 - `+` (addition)
@@ -38,7 +57,7 @@ In addition, the compiler supports basic **unary and binary operations**, includ
 - `/` (division)
 - `%` (modulo)
 
-#### Logical and comparison operators:
+#### Logical and Comparison Operators:
 - `<` (less than)
 - `<=` (less or equal)
 - `>` (greater than)
@@ -48,7 +67,7 @@ In addition, the compiler supports basic **unary and binary operations**, includ
 - `&&` (logical AND)
 - `||` (logical OR)
 
-These can be used inside expressions within the `return` statement, e.g.:
+These can be used inside expressions including returns, assignments, or conditions:
 
 ```c
 int main(void) {
@@ -56,9 +75,9 @@ int main(void) {
 }
 ```
 
-### Local variables support
+### Local Variables
 
-The compiler also supports local variables of type `int`, for example:
+The compiler supports local variables of type `int`:
 
 ```c
 int main(void) {
