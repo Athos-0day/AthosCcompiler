@@ -77,6 +77,7 @@ int main(int argc, char* argv[]) {
             auto lex = lexer(filepath, false);
             Parser parser(lex, false);
             auto ast = parser.parseProgram();
+            resolve_program(ast.get());
             Lowerer lowerer;
             auto tackyProgram = lowerer.lower(ast.get());
 
@@ -88,6 +89,7 @@ int main(int argc, char* argv[]) {
             auto lex = lexer(filepath, false);
             Parser parser(lex, false);
             auto ast = parser.parseProgram();
+            resolve_program(ast.get());
 
             Lowerer lowerer;
             auto tackyProgram = lowerer.lower(ast.get());
@@ -110,6 +112,7 @@ int main(int argc, char* argv[]) {
             auto lex = lexer(filepath, false);
             Parser parser(lex, false);
             auto ast = parser.parseProgram();
+            resolve_program(ast.get());
 
             Lowerer lowerer;
             auto tackyProgram = lowerer.lower(ast.get());
