@@ -43,6 +43,18 @@ In addition, the compiler supports:
   }
   ```
 
+- Compound statements (block scope with `{}`)  
+  ```c
+  int main(void) {
+      int x = 5;
+      if (x > 0) {
+          int y = 3;
+          x = x + y;
+      }
+      return x;
+  }
+  ```
+
 ### Unary Operators:
 - `-x` (negation)
 - `~x` (bitwise NOT)
