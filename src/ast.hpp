@@ -3,11 +3,11 @@
 
 #include <string>
 #include <memory>
-#include "lexer.hpp"
 #include <vector>
+#include "lexer.hpp"
 
 /**
- * @brief Enum class for expression type.
+ * @brief Enum class for expression types.
  */
 enum class ExpressionType {
     CONSTANT,
@@ -19,7 +19,7 @@ enum class ExpressionType {
 };
 
 /**
- * @brief Enum class for block item type.
+ * @brief Enum class for block item types.
  */
 enum class BlockItemType {
     STATEMENT,
@@ -27,17 +27,18 @@ enum class BlockItemType {
 };
 
 /**
- * @brief Enum class for statement type.
+ * @brief Enum class for statement types.
  */
 enum class StatementType {
     RETURN,
     EXPRESSION,
     NULL_STMT,
-    IF
+    IF,
+    COMPOUND
 };
 
 /**
- * @brief Enum class for unary operator.
+ * @brief Enum class for unary operators.
  */
 enum class UnaryOpast {
     COMPLEMENT,
@@ -46,7 +47,7 @@ enum class UnaryOpast {
 };
 
 /**
- * @brief Enum class for binary operator.
+ * @brief Enum class for binary operators.
  */
 enum class BinaryOpast {
     ADD,
@@ -65,7 +66,7 @@ enum class BinaryOpast {
 };
 
 /**
- * @brief Base class for all nodes in the Abstract Syntax Tree (AST).
+ * @brief Base class for all Abstract Syntax Tree (AST) nodes.
  */
 class ASTNode {
 public:
@@ -79,51 +80,46 @@ class Expression : public ASTNode {
 public:
     ExpressionType type;
 
-    // For constants
+    // Constant
     int value = 0;
 
-    // For unary expressions
+    // Unary expression
     UnaryOpast un_op;
     std::unique_ptr<Expression> operand;
 
-    // For binary expressions
+    // Binary expression
     BinaryOpast bin_op;
     std::unique_ptr<Expression> operand1;
     std::unique_ptr<Expression> operand2;
 
-    // For var expressions
+    // Variable expression
     std::string identifier;
 
-    // For assignment expressions
+    // Assignment expression
     std::unique_ptr<Expression> exp1;
     std::unique_ptr<Expression> exp2;
 
-    // For conditional expressions
+    // Conditional (ternary) expression
     std::unique_ptr<Expression> condition;
     std::unique_ptr<Expression> trueExpr;
     std::unique_ptr<Expression> falseExpr;
 
-    // Constant constructor
+    // Constructors
     Expression(int v)
         : type(ExpressionType::CONSTANT), value(v) {}
 
-    // Unary expression constructor
     Expression(UnaryOpast unaryOp, std::unique_ptr<Expression> expr)
         : type(ExpressionType::UNARY), un_op(unaryOp), operand(std::move(expr)) {}
 
-    // Binary expression constructor
     Expression(BinaryOpast binaryOp, std::unique_ptr<Expression> lhs, std::unique_ptr<Expression> rhs)
         : type(ExpressionType::BINARY), bin_op(binaryOp), operand1(std::move(lhs)), operand2(std::move(rhs)) {}
 
-    // Var constructor 
-    Expression(std::string id) 
-        : type(ExpressionType::VAR), identifier(id) {}
+    Expression(std::string id)
+        : type(ExpressionType::VAR), identifier(std::move(id)) {}
 
-    // Assignment constructor 
     Expression(std::unique_ptr<Expression> lhs, std::unique_ptr<Expression> rhs)
         : type(ExpressionType::ASSIGNMENT), exp1(std::move(lhs)), exp2(std::move(rhs)) {}
 
-    // Conditional (ternary) constructor: condition ? trueExpr : falseExpr
     Expression(std::unique_ptr<Expression> cond,
                std::unique_ptr<Expression> tExpr,
                std::unique_ptr<Expression> fExpr)
@@ -134,7 +130,7 @@ public:
 };
 
 /**
- * @brief Represents a statement node, including return, expression, null, and if statements.
+ * @brief Represents a statement node (return, expression, null, if, or compound).
  */
 class Statement : public ASTNode {
 public:
@@ -143,20 +139,21 @@ public:
     // For return or expression statements
     std::unique_ptr<Expression> expression;
 
-    // For IF statement
-    std::unique_ptr<Expression> condition;          ///< Condition expression
-    std::unique_ptr<Statement> thenBranch;          ///< Statement to execute if condition is true
-    std::unique_ptr<Statement> elseBranch;          ///< Optional else branch
+    // For if statements
+    std::unique_ptr<Expression> condition;
+    std::unique_ptr<Statement> thenBranch;
+    std::unique_ptr<Statement> elseBranch;
 
-    // Constructor for return or expression statements
+    // For compound statements
+    std::unique_ptr<class Block> block;
+
+    // Constructors
     Statement(std::unique_ptr<Expression> expr, StatementType type)
         : type(type), expression(std::move(expr)) {}
 
-    // Constructor for null statements
     Statement(StatementType type)
         : type(type) {}
 
-    // Constructor for IF statement
     Statement(std::unique_ptr<Expression> cond,
               std::unique_ptr<Statement> thenStmt,
               std::unique_ptr<Statement> elseStmt = nullptr)
@@ -164,23 +161,25 @@ public:
           condition(std::move(cond)),
           thenBranch(std::move(thenStmt)),
           elseBranch(std::move(elseStmt)) {}
+
+    Statement(std::unique_ptr<class Block> b)
+        : type(StatementType::COMPOUND), block(std::move(b)) {}
 };
 
 /**
- * @brief Represents a variable declaration.
+ * @brief Represents a variable declaration (optionally with initializer).
  */
 class Declaration : public ASTNode {
 public:
     std::string name;
-    std::unique_ptr<Expression> initializer; // optional
+    std::unique_ptr<Expression> initializer;
 
-    // Constructor for declaration with optional initializer
     Declaration(const std::string& id, std::unique_ptr<Expression> init = nullptr)
         : name(id), initializer(std::move(init)) {}
 };
 
 /**
- * @brief Represents either a statement or a declaration in a block.
+ * @brief Represents a block item: either a statement or a declaration.
  */
 class BlockItem : public ASTNode {
 public:
@@ -189,36 +188,45 @@ public:
     std::unique_ptr<Statement> statement;
     std::unique_ptr<Declaration> declaration;
 
-    // Constructor for statement
     BlockItem(std::unique_ptr<Statement> stmt)
         : type(BlockItemType::STATEMENT), statement(std::move(stmt)) {}
 
-    // Constructor for declaration
     BlockItem(std::unique_ptr<Declaration> decl)
         : type(BlockItemType::DECLARATION), declaration(std::move(decl)) {}
 };
 
+/**
+ * @brief Represents a compound block of code containing multiple block items.
+ */
+class Block : public ASTNode {
+public:
+    std::vector<std::unique_ptr<BlockItem>> items;
+
+    Block(std::vector<std::unique_ptr<BlockItem>>&& items)
+        : items(std::move(items)) {}
+};
 
 /**
- * @brief Represents a function definition with a list of block items.
+ * @brief Represents a function definition.
  */
 class Function : public ASTNode {
 public:
     std::string name;
-    std::vector<std::unique_ptr<BlockItem>> body;
+    std::unique_ptr<Block> body;
 
-    Function(const std::string& id, std::vector<std::unique_ptr<BlockItem>>&& items)
-        : name(id), body(std::move(items)) {}
+    Function(const std::string& id, std::unique_ptr<Block> b)
+        : name(id), body(std::move(b)) {}
 };
 
 /**
- * @brief Represents the root program node.
+ * @brief Represents the root program node (entry point).
  */
 class Program : public ASTNode {
 public:
     std::unique_ptr<Function> function;
 
-    Program(std::unique_ptr<Function> func) : function(std::move(func)) {}
+    Program(std::unique_ptr<Function> func)
+        : function(std::move(func)) {}
 };
 
 #endif // AST_HPP

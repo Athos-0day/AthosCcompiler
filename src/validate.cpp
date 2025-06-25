@@ -1,6 +1,6 @@
 /**
  * @file validate.cpp
- * @brief Implementation of semantic validation and name resolution functions.
+ * @brief Implementation of semantic validation and name resolution functions with block scoping support.
  */
 
 #include "validate.hpp"
@@ -9,44 +9,45 @@
 
 bool validate_verbose = false;
 
-/**
- * @brief Log semantic validation info if verbose is enabled.
- */
 void log(const std::string& msg) {
     if (validate_verbose) {
         std::cout << "[Validate] " << msg << std::endl;
     }
 }
 
-/**
- * @brief Throw semantic error with standardized prefix.
- */
 [[noreturn]] void error(const std::string& msg) {
     throw std::runtime_error("Semantic error: " + msg);
 }
 
-std::unique_ptr<Expression> resolve_exp(const Expression* expr, const VarMap& varMap) {
+std::string resolve_variable_name(const std::string& name, const std::vector<VarMap>& scopes) {
+    for (auto it = scopes.rbegin(); it != scopes.rend(); ++it) {
+        auto found = it->find(name);
+        if (found != it->end()) {
+            return found->second;
+        }
+    }
+    error("Use of undeclared variable '" + name + "'");
+}
+
+std::unique_ptr<Expression> resolve_exp(const Expression* expr, const std::vector<VarMap>& scopes) {
     switch (expr->type) {
         case ExpressionType::CONSTANT:
             return std::make_unique<Expression>(expr->value);
 
         case ExpressionType::VAR: {
-            auto it = varMap.find(expr->identifier);
-            if (it == varMap.end()) {
-                error("Use of undeclared variable '" + expr->identifier + "'");
-            }
-            log("Resolved variable '" + expr->identifier + "' to '" + it->second + "'");
-            return std::make_unique<Expression>(it->second);
+            std::string uniqueName = resolve_variable_name(expr->identifier, scopes);
+            log("Resolved variable '" + expr->identifier + "' to '" + uniqueName + "'");
+            return std::make_unique<Expression>(uniqueName);
         }
 
         case ExpressionType::UNARY: {
-            auto sub = resolve_exp(expr->operand.get(), varMap);
+            auto sub = resolve_exp(expr->operand.get(), scopes);
             return std::make_unique<Expression>(expr->un_op, std::move(sub));
         }
 
         case ExpressionType::BINARY: {
-            auto left = resolve_exp(expr->operand1.get(), varMap);
-            auto right = resolve_exp(expr->operand2.get(), varMap);
+            auto left = resolve_exp(expr->operand1.get(), scopes);
+            auto right = resolve_exp(expr->operand2.get(), scopes);
             return std::make_unique<Expression>(expr->bin_op, std::move(left), std::move(right));
         }
 
@@ -54,28 +55,18 @@ std::unique_ptr<Expression> resolve_exp(const Expression* expr, const VarMap& va
             if (!expr->exp1 || expr->exp1->type != ExpressionType::VAR) {
                 error("Left-hand side of assignment must be a variable");
             }
-
-            auto it = varMap.find(expr->exp1->identifier);
-            if (it == varMap.end()) {
-                error("Assignment to undeclared variable '" + expr->exp1->identifier + "'");
-            }
-
-            log("Resolved assignment to '" + it->second + "'");
-            auto lhs = std::make_unique<Expression>(it->second);
-            auto rhs = resolve_exp(expr->exp2.get(), varMap);
+            std::string uniqueName = resolve_variable_name(expr->exp1->identifier, scopes);
+            log("Resolved assignment to '" + uniqueName + "'");
+            auto lhs = std::make_unique<Expression>(uniqueName);
+            auto rhs = resolve_exp(expr->exp2.get(), scopes);
             return std::make_unique<Expression>(std::move(lhs), std::move(rhs));
         }
 
         case ExpressionType::CONDITIONAL: {
-            if (!expr->condition || !expr->trueExpr || !expr->falseExpr) {
-                error("Incomplete conditional expression");
-            }
-
-            auto condition = resolve_exp(expr->condition.get(), varMap);
-            auto thenExpr = resolve_exp(expr->trueExpr.get(), varMap);
-            auto elseExpr = resolve_exp(expr->falseExpr.get(), varMap);
-
-            return std::make_unique<Expression>(std::move(condition), std::move(thenExpr), std::move(elseExpr));
+            auto cond = resolve_exp(expr->condition.get(), scopes);
+            auto thenExpr = resolve_exp(expr->trueExpr.get(), scopes);
+            auto elseExpr = resolve_exp(expr->falseExpr.get(), scopes);
+            return std::make_unique<Expression>(std::move(cond), std::move(thenExpr), std::move(elseExpr));
         }
 
         default:
@@ -83,40 +74,35 @@ std::unique_ptr<Expression> resolve_exp(const Expression* expr, const VarMap& va
     }
 }
 
-/**
- * @brief Resolve a declaration: generate unique name and resolve initializer.
- */
-void resolve_declaration(Declaration* decl, VarMap& varMap) {
+void resolve_declaration(Declaration* decl, std::vector<VarMap>& scopes) {
     const std::string& name = decl->name;
+    VarMap& current = scopes.back();
 
-    if (varMap.find(name) != varMap.end()) {
-        error("Variable '" + name + "' is already declared");
+    if (current.find(name) != current.end()) {
+        error("Variable '" + name + "' is already declared in this scope");
     }
 
     std::string uniqueName = generateUniqueName(name);
-    varMap[name] = uniqueName;
+    current[name] = uniqueName;
 
     log("Declared variable '" + name + "' as '" + uniqueName + "'");
 
     if (decl->initializer) {
-        decl->initializer = resolve_exp(decl->initializer.get(), varMap);
+        decl->initializer = resolve_exp(decl->initializer.get(), scopes);
         log("Resolved initializer for '" + uniqueName + "'");
     }
 }
 
-/**
- * @brief Resolve a statement: currently supports return and expression statements.
- */
-void resolve_statement(Statement* stmt, VarMap& varMap) {
+void resolve_statement(Statement* stmt, std::vector<VarMap>& scopes) {
     switch (stmt->type) {
         case StatementType::RETURN:
             log("Resolving return statement");
-            stmt->expression = resolve_exp(stmt->expression.get(), varMap);
+            stmt->expression = resolve_exp(stmt->expression.get(), scopes);
             break;
 
         case StatementType::EXPRESSION:
             log("Resolving expression statement");
-            stmt->expression = resolve_exp(stmt->expression.get(), varMap);
+            stmt->expression = resolve_exp(stmt->expression.get(), scopes);
             break;
 
         case StatementType::NULL_STMT:
@@ -125,11 +111,16 @@ void resolve_statement(Statement* stmt, VarMap& varMap) {
 
         case StatementType::IF:
             log("Resolving if statement");
-            stmt->condition = resolve_exp(stmt->condition.get(), varMap);
-            resolve_statement(stmt->thenBranch.get(), varMap);
+            stmt->condition = resolve_exp(stmt->condition.get(), scopes);
+            resolve_statement(stmt->thenBranch.get(), scopes);
             if (stmt->elseBranch) {
-                resolve_statement(stmt->elseBranch.get(), varMap);
+                resolve_statement(stmt->elseBranch.get(), scopes);
             }
+            break;
+
+        case StatementType::COMPOUND:
+            log("Resolving compound statement (block)");
+            resolve_block(stmt->block.get(), scopes);
             break;
 
         default:
@@ -137,19 +128,14 @@ void resolve_statement(Statement* stmt, VarMap& varMap) {
     }
 }
 
-/**
- * @brief Resolve a block item (either a declaration or a statement).
- */
-void resolve_block_item(BlockItem* item, VarMap& varMap) {
+void resolve_block_item(BlockItem* item, std::vector<VarMap>& scopes) {
     switch (item->type) {
         case BlockItemType::DECLARATION:
-            log("Resolving declaration in block");
-            resolve_declaration(item->declaration.get(), varMap);
+            resolve_declaration(item->declaration.get(), scopes);
             break;
 
         case BlockItemType::STATEMENT:
-            log("Resolving statement in block");
-            resolve_statement(item->statement.get(), varMap);
+            resolve_statement(item->statement.get(), scopes);
             break;
 
         default:
@@ -157,27 +143,27 @@ void resolve_block_item(BlockItem* item, VarMap& varMap) {
     }
 }
 
-/**
- * @brief Resolve an entire function body.
- */
+void resolve_block(Block* block, std::vector<VarMap>& scopes) {
+    scopes.push_back(VarMap{}); // Enter new scope
+    for (auto& item : block->items) {
+        resolve_block_item(item.get(), scopes);
+    }
+    scopes.pop_back(); // Exit scope
+}
+
 void resolve_function(Function* fn) {
     log("Resolving function '" + fn->name + "'");
-    VarMap varMap;
+    std::vector<VarMap> scopes;
+    scopes.emplace_back();  // global scope for this function
 
-    for (auto& item : fn->body) {
-        resolve_block_item(item.get(), varMap);
-    }
+    resolve_block(fn->body.get(), scopes);
 
     log("Finished resolving function '" + fn->name + "'");
 }
 
-/**
- * @brief Resolve the root program.
- */
 void resolve_program(Program* program) {
     if (!program || !program->function) {
         error("Program is missing a function definition");
     }
-
     resolve_function(program->function.get());
 }

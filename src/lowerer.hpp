@@ -77,6 +77,16 @@ private:
     void lowerBlockItem(const BlockItem* item);
 
     /**
+     * @brief Lower a Block node by lowering all contained BlockItems.
+     * 
+     * This method processes each BlockItem in the block sequentially,
+     * recursively lowering declarations and statements into TACKY instructions.
+     * 
+     * @param block Pointer to the Block node.
+     */
+    void lowerBlock(const Block* block);
+
+    /**
      * @brief Lower the body of a Function node by lowering all its BlockItems.
      * 
      * @param fn Pointer to the Function AST node.

@@ -70,6 +70,14 @@ private:
     int getPrecedence(Token token);
 
     /**
+     * @brief Checks if we have reached the end of the token stream.
+     */
+    bool isAtEnd() const {
+        return current >= tokens.size();
+    }
+
+
+    /**
      * @brief Converts a token representing a binary operator into its AST equivalent.
      *
      * @param token Token to convert (must be a binary operator).
@@ -135,7 +143,21 @@ public:
      */
     std::unique_ptr<Function> parseFunction();
 
-        /**
+    /**
+     * @brief Parses a compound block of code.
+     *
+     * Grammar:
+     *     <block> ::= "{" { <block-item> } "}"
+     *
+     * This function assumes the opening brace '{' has already been consumed.
+     * It will parse zero or more block items (statements or declarations)
+     * until the closing brace '}' is encountered.
+     *
+     * @return A unique pointer to the parsed Block node.
+     */
+    std::unique_ptr<Block> parseBlock();
+
+    /**
      * @brief Parses a ‹block-item› inside a function body.
      *
      * A block item can currently be:

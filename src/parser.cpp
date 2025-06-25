@@ -77,18 +77,28 @@ std::unique_ptr<Function> Parser::parseFunction() {
     expect(Token::OPARENTHESIS, "Expected '(' after function name");
     expect(Token::VOID, "Expected 'void' in parameter list");
     expect(Token::CPARENTHESIS, "Expected ')' after 'void'");
+
+    // Parse function body as a Block
     expect(Token::OBRACE, "Expected '{' to begin function body");
-
-    std::vector<std::unique_ptr<BlockItem>> body;
-
-    while (peek().token != Token::CBRACE && peek().token != Token::MISMATCH) {
-        body.push_back(parseBlockItem());
-    }
-
-    expect(Token::CBRACE, "Expected '}' to close function body");
+    auto block = parseBlock();  // Now responsible for consuming the closing '}'
 
     log("Parsed function '" + funcName + "' successfully");
-    return std::make_unique<Function>(funcName, std::move(body));
+    return std::make_unique<Function>(funcName, std::move(block));
+}
+
+//Parse block
+std::unique_ptr<Block> Parser::parseBlock() {
+    std::vector<std::unique_ptr<BlockItem>> items;
+
+    while (!match(Token::CBRACE)) {
+        if (isAtEnd()) {
+            throw std::runtime_error("Unexpected end of input. Expected '}' to close block.");
+        }
+
+        items.push_back(parseBlockItem());
+    }
+
+    return std::make_unique<Block>(std::move(items));
 }
 
 // Parse block item (statement or declaration)
@@ -118,7 +128,7 @@ std::unique_ptr<Statement> Parser::parseStatement() {
     log("Parsing statement");
 
     if (match(Token::RETURN)) {
-        // return <exp> ;
+        // return <expression> ;
         auto expr = parseExpression(0);
         expect(Token::SEMICOLON, "Expected ';' after return expression");
         log("Parsed return statement");
@@ -126,6 +136,7 @@ std::unique_ptr<Statement> Parser::parseStatement() {
     }
 
     if (match(Token::IF)) {
+        // if ( <condition> ) <thenStmt> [else <elseStmt>]
         expect(Token::OPARENTHESIS, "Expected '(' after 'if'");
         auto condition = parseExpression(0);
         expect(Token::CPARENTHESIS, "Expected ')' after condition");
@@ -145,6 +156,12 @@ std::unique_ptr<Statement> Parser::parseStatement() {
         );
     }
 
+    if (match(Token::OBRACE)) {
+        // { <block-item>* }
+        auto block = parseBlock();
+        log("Parsed compound block statement");
+        return std::make_unique<Statement>(std::move(block));
+    }
 
     if (peek().token == Token::SEMICOLON) {
         // ;
@@ -153,7 +170,7 @@ std::unique_ptr<Statement> Parser::parseStatement() {
         return std::make_unique<Statement>(nullptr, StatementType::NULL_STMT);
     }
 
-    // Try parsing <expression> ;
+    // <expression> ;
     auto expr = parseExpression(0);
     expect(Token::SEMICOLON, "Expected ';' after expression statement");
     log("Parsed expression statement");

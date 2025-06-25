@@ -235,9 +235,20 @@ void Lowerer::lowerStatement(const Statement* stmt) {
 
             break;
         }
-
+        case StatementType::COMPOUND: {
+            lowerBlock(stmt->block.get());
+        }
         case StatementType::NULL_STMT:
             break;
+    }
+}
+
+void Lowerer::lowerBlock(const Block* block) {
+    if (!block) return; // Safety check for null pointer
+
+    // Iterate over each item in the block and lower it
+    for (const auto& item : block->items) {
+        lowerBlockItem(item.get());
     }
 }
 
@@ -258,9 +269,7 @@ void Lowerer::lowerBlockItem(const BlockItem* item) {
 }
 
 void Lowerer::lowerFunction(const Function* fn) {
-    for (const auto& item : fn->body) {
-        lowerBlockItem(item.get());
-    }
+    lowerBlock(fn->body.get());
 }
 
 std::unique_ptr<tacky::Program> Lowerer::lower(const Program* astProgram) {
