@@ -55,6 +55,34 @@ In addition, the compiler supports:
   }
   ```
 
+- Loops: `for`, `while`, and `do-while`
+  ```c
+  int main(void) {
+      int i = 0;
+      while (i < 10) {
+          if (i == 5)
+              break;
+          i = i + 1;
+      }
+
+      for (int j = 0; j < 10; j = j + 1) {
+          if (j % 2 == 0)
+              continue;
+          i = i + j;
+      }
+
+      do {
+          i = i - 1;
+      } while (i > 0);
+
+      return i;
+  }
+  ```
+
+- Loop Control Statements:
+  - `break` to exit early from loops
+  - `continue` to skip the current iteration and proceed to the next
+
 ### Unary Operators:
 - `-x` (negation)
 - `~x` (bitwise NOT)
@@ -138,6 +166,6 @@ echo $?   # Should print the return value
 ## Example Usage
 
 ```bash
-./compiler --compile example.c
+./compiler example.c
 # This creates out.s and builds an executable named `example` targeting x86_64
 ```
