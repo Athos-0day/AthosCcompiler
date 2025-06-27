@@ -506,11 +506,14 @@ FunctionDefinition* ASDLProgram::getFunctionDefinition() const {
 std::unique_ptr<Operand> replaceIfPseudo(Operand* op, std::unordered_map<std::string, int>& offsets, int& stackOffset) {
     if (auto pseudo = dynamic_cast<Pseudo*>(op)) {
         const std::string& name = pseudo->getIdentifier();
-        if (!offsets.count(name)) {
+        auto it = offsets.find(name);
+        if (it == offsets.end()) {
             offsets[name] = stackOffset;
             stackOffset -= 4;
+            return std::make_unique<Stack>(offsets[name]);
+        } else {
+            return std::make_unique<Stack>(it->second);
         }
-        return std::make_unique<Stack>(offsets[name]);
     }
     return nullptr;
 }

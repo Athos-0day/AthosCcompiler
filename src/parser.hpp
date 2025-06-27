@@ -172,6 +172,24 @@ public:
     std::unique_ptr<BlockItem> parseBlockItem();
 
     /**
+     * @brief Parses the initializer portion of a 'for' loop.
+     *
+     * This method handles the <for_init> grammar rule, which can be either:
+     *   - A variable declaration:       int x = 0;
+     *   - An optional expression:       x = 5;
+     *   - Or nothing at all:            ;
+     *
+     * It distinguishes between a declaration and an expression by peeking the next token.
+     * If the token is 'int', a declaration is parsed.
+     * Otherwise, an optional expression is parsed (which can be null), followed by a required semicolon.
+     *
+     * @return A unique_ptr to a ForInit node containing either a Declaration or an Expression.
+     *         Returns a non-null ForInit object even if the expression is empty (null).
+     *         If invalid syntax is encountered, it throws a runtime_error with location info.
+     */
+    std::unique_ptr<ForInit> parseForInit();
+
+    /**
      * @brief Parses a ‹statement› according to the grammar.
      * @return Unique pointer to the ReturnStatement AST node.
      * @throws std::runtime_error If parsing fails.

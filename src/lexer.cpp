@@ -29,61 +29,7 @@
 #include <stdexcept>
 #include <algorithm> 
 
-/**
- * @enum Token
- * @brief Enumeration of token types recognized by the lexer.
- */
-enum class Token {
-    IDENTIFIER,     ///< Valid identifier (e.g., variable names)
-    CONSTANT,       ///< Numeric constant (digits only)
-    INT,            ///< 'int' keyword
-    VOID,           ///< 'void' keyword
-    RETURN,         ///< 'return' keyword
-    OPARENTHESIS,   ///< Opening parenthesis '('
-    CPARENTHESIS,   ///< Closing parenthesis ')'
-    OBRACE,         ///< Opening brace '{'
-    CBRACE,         ///< Closing brace '}'
-    SEMICOLON,      ///< Semicolon ';'
-    SKIP,           ///< Whitespace characters (spaces, tabs, newlines)
-    COMMENT,        ///< Single-line comment (//...)
-    ML_COMMENT,     ///< Multi-line comment (/* ... */)
-    MISMATCH,       ///< Invalid or unrecognized token
-    COMPLEMENT,     ///< Complement operator '~'
-    NEGATION,       ///< Negation operator '-'
-    DECREMENT,      ///< Decrement operator '--'
-    ADDITION,       ///< Addition operator '+'
-    MULTIPLICATION, ///< Multiplication operator '*'
-    DIVISION,       ///< Division operator '/'
-    REMAINDER,      ///< Remainder operator '%'
-    NOT,            ///< Not Operator '!' 
-    AND,            ///< And Operator '&&'
-    OR,             ///< Or Operator '||'
-    EQUAL,          ///< Equal Operator '=='
-    NOTEQUAL,       ///< Not Equal Operator '!='
-    LESS,           ///< Less '<'
-    GREATER,        ///< Greater '>'
-    LESSEQ,         ///< Less or Equal '<='
-    GREATEREQ,      ///< Greater or Equal '>='
-    ASSIGN,         ///< Assignement '='
-    IF,             ///< If 'if'
-    ELSE,           ///< Else 'else'
-    COLON,          ///< Colon ':'
-    QUESTION_MARK   ///< Question mark '?'
-};
-
-/**
- * @struct Lex
- * @brief Represents a lexical token.
- * 
- * Contains the raw token string, the token type, its position (order) in the input stream,
- * and the line number where the token appears in the source file.
- */
-struct Lex {
-    std::string word;   ///< Raw token text
-    Token token;        ///< Token type
-    int position;       ///< Position index of token in the source
-    int line;           ///< Line number where the token was found
-};
+#include "lexer.hpp"
 
 /**
  * @brief Converts a Token enum value to a human-readable string.
@@ -127,6 +73,11 @@ std::string tokenToString(Token t) {
         case Token::ELSE: return "ELSE";
         case Token::COLON: return "COLON";
         case Token::QUESTION_MARK: return "QUESTION_MARK";
+        case Token::DO: return "DO";
+        case Token::WHILE: return "WHILE";
+        case Token::FOR: return "FOR";
+        case Token::CONTINUE: return "CONTINUE";
+        case Token::BREAK: return "BREAK";
         default: return "MISMATCH";
     }
 }
@@ -170,6 +121,11 @@ Token wordToToken(const std::string& word) {
     if (word == "else")     return Token::ELSE;
     if (word == ":")        return Token::COLON;
     if (word == "?")        return Token::QUESTION_MARK;
+    if (word == "do")       return Token::DO;
+    if (word == "while")       return Token::WHILE;
+    if (word == "for")       return Token::FOR;
+    if (word == "continue")       return Token::CONTINUE;
+    if (word == "break")       return Token::BREAK;
 
     if (std::regex_match(word, std::regex(R"(\d+)"))) 
         return Token::CONSTANT;
@@ -209,7 +165,7 @@ Token wordToToken(const std::string& word) {
  * 
  * @throws std::runtime_error If the file cannot be opened or if a lexical error occurs.
  */
-std::vector<Lex> lexer(const std::string& filename, bool verbose = true) {
+std::vector<Lex> lexer(const std::string& filename, bool verbose) {
     std::ifstream file(filename);
     if (!file.is_open()) {
         throw std::runtime_error("Error opening file: " + filename);
@@ -257,6 +213,11 @@ std::vector<Lex> lexer(const std::string& filename, bool verbose = true) {
         {std::regex(R"(^\bint\b)"), Token::INT},
         {std::regex(R"(^\bvoid\b)"), Token::VOID},
         {std::regex(R"(^\breturn\b)"), Token::RETURN},
+        {std::regex(R"(^\bdo\b)"), Token::DO},
+        {std::regex(R"(^\bfor\b)"), Token::FOR},
+        {std::regex(R"(^\bwhile\b)"), Token::WHILE},
+        {std::regex(R"(^\bcontinue\b)"), Token::CONTINUE},
+        {std::regex(R"(^\bbreak\b)"), Token::BREAK},
         {std::regex(R"(^[a-zA-Z_]\w*)"), Token::IDENTIFIER},
         {std::regex(R"(^\d+)"), Token::CONSTANT},
         {std::regex(R"(^\s+)"), Token::SKIP},

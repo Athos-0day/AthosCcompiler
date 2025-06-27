@@ -83,17 +83,19 @@ void resolve_declaration(Declaration* decl, std::vector<VarMap>& scopes) {
     }
 
     std::string uniqueName = generateUniqueName(name);
+
     current[name] = uniqueName;
 
     log("Declared variable '" + name + "' as '" + uniqueName + "'");
-
+    decl->name = uniqueName;
+    
     if (decl->initializer) {
         decl->initializer = resolve_exp(decl->initializer.get(), scopes);
         log("Resolved initializer for '" + uniqueName + "'");
     }
 }
 
-void resolve_statement(Statement* stmt, std::vector<VarMap>& scopes) {
+void resolve_statement(Statement* stmt, std::vector<VarMap>& scopes, const std::string& currentLoopLabel) {
     switch (stmt->type) {
         case StatementType::RETURN:
             log("Resolving return statement");
@@ -112,15 +114,64 @@ void resolve_statement(Statement* stmt, std::vector<VarMap>& scopes) {
         case StatementType::IF:
             log("Resolving if statement");
             stmt->condition = resolve_exp(stmt->condition.get(), scopes);
-            resolve_statement(stmt->thenBranch.get(), scopes);
+            resolve_statement(stmt->thenBranch.get(), scopes, currentLoopLabel);
             if (stmt->elseBranch) {
-                resolve_statement(stmt->elseBranch.get(), scopes);
+                resolve_statement(stmt->elseBranch.get(), scopes, currentLoopLabel);
             }
             break;
 
         case StatementType::COMPOUND:
             log("Resolving compound statement (block)");
-            resolve_block(stmt->block.get(), scopes);
+            resolve_block(stmt->block.get(), scopes, currentLoopLabel);
+            break;
+
+        case StatementType::WHILE:
+        case StatementType::DO_WHILE:
+        case StatementType::FOR: {
+            std::string loopLabel = generateUniqueName("loop");
+            stmt->label = loopLabel;
+            log("Generated loop label: '" + loopLabel + "'");
+
+            if (stmt->type == StatementType::WHILE || stmt->type == StatementType::DO_WHILE) {
+                log("Resolving " + std::string(stmt->type == StatementType::WHILE ? "while" : "do-while") + " loop");
+                stmt->condition = resolve_exp(stmt->condition.get(), scopes);
+                resolve_statement(stmt->body.get(), scopes, loopLabel);
+            } else { // FOR
+                log("Resolving for loop");
+
+                scopes.push_back(VarMap{});
+
+                if (stmt->forInit) {
+                    if (stmt->forInit->type == ForInitType::INIT_DECL) {
+                        resolve_declaration(stmt->forInit->decl.get(), scopes);
+                    } else if (stmt->forInit->type == ForInitType::INIT_EXP && stmt->forInit->expr) {
+                        stmt->forInit->setExpression(resolve_exp(stmt->forInit->expr.get(), scopes));
+                    }
+                }
+
+                if (stmt->condition) {
+                    stmt->condition = resolve_exp(stmt->condition.get(), scopes);
+                }
+
+                if (stmt->postExpr) {
+                    stmt->postExpr = resolve_exp(stmt->postExpr.get(), scopes);
+                }
+
+                resolve_statement(stmt->body.get(), scopes, loopLabel);
+
+                scopes.pop_back();
+            }
+            break;
+        }
+
+        case StatementType::BREAK:
+        case StatementType::CONTINUE:
+            if (currentLoopLabel.empty()) {
+                error("break/continue used outside of a loop");
+            }
+            stmt->label = currentLoopLabel;
+            log("Assigned loop label '" + currentLoopLabel + "' to " + 
+                (stmt->type == StatementType::BREAK ? "break" : "continue") + " statement");
             break;
 
         default:
@@ -143,10 +194,19 @@ void resolve_block_item(BlockItem* item, std::vector<VarMap>& scopes) {
     }
 }
 
-void resolve_block(Block* block, std::vector<VarMap>& scopes) {
+void resolve_block(Block* block, std::vector<VarMap>& scopes, const std::string& currentLoopLabel) {
     scopes.push_back(VarMap{}); // Enter new scope
     for (auto& item : block->items) {
-        resolve_block_item(item.get(), scopes);
+        switch (item->type) {
+            case BlockItemType::DECLARATION:
+                resolve_declaration(item->declaration.get(), scopes);
+                break;
+            case BlockItemType::STATEMENT:
+                resolve_statement(item->statement.get(), scopes, currentLoopLabel);
+                break;
+            default:
+                error("Invalid block item type");
+        }
     }
     scopes.pop_back(); // Exit scope
 }
@@ -156,7 +216,7 @@ void resolve_function(Function* fn) {
     std::vector<VarMap> scopes;
     scopes.emplace_back();  // global scope for this function
 
-    resolve_block(fn->body.get(), scopes);
+    resolve_block(fn->body.get(), scopes, "");
 
     log("Finished resolving function '" + fn->name + "'");
 }

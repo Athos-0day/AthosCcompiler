@@ -77,31 +77,37 @@ std::unique_ptr<Expression> resolve_exp(const Expression* expr, const VarMapStac
 void resolve_declaration(Declaration* decl, VarMapStack& varStack);
 
 /**
- * @brief Validates and resolves a statement node.
+ * @brief Validates and resolves a statement node with optional loop context.
  *
  * Handles:
- * - Return statements (resolves expressions)
- * - Expression statements
- * - Null statements (no-op)
- * - If statements (including nested branches)
- * - Compound statements (blocks), which introduce new scopes
+ * - Return, expression, and null statements
+ * - If statements (with optional else branches)
+ * - Compound (block) statements that create nested scopes
+ * - Loop constructs (`while`, `do-while`, `for`) with unique labels
+ * - Control flow (`break`, `continue`) within loops
  *
  * @param stmt Pointer to the Statement node.
  * @param varStack Stack of variable scopes.
- * @throws std::runtime_error On semantic errors.
+ * @param currentLoopLabel Label of the nearest enclosing loop for control flow handling.
+ *                         Leave empty if not inside a loop.
+ * @throws std::runtime_error On semantic errors such as invalid control flow usage.
  */
-void resolve_statement(Statement* stmt, VarMapStack& varStack);
+void resolve_statement(Statement* stmt, VarMapStack& varStack, const std::string& currentLoopLabel = "");
 
 /**
  * @brief Resolves all semantics within a compound block statement.
  *
- * This function manages a new variable scope, resolves declarations
- * and statements inside the block, and properly handles nested scopes.
+ * Manages:
+ * - A new nested variable scope
+ * - Declarations and statements within the block
+ * - Propagation of loop context for proper handling of break/continue
  *
  * @param block Pointer to the Block node representing the compound statement.
- * @param scopes Reference to the stack of variable scopes.
+ * @param varStack Reference to the stack of variable scopes.
+ * @param currentLoopLabel Label of the nearest enclosing loop (if any),
+ *                         used to validate break/continue statements.
  */
-void resolve_block(Block* block, std::vector<VarMap>& scopes);
+void resolve_block(Block* block, VarMapStack& varStack, const std::string& currentLoopLabel = "");
 
 /**
  * @brief Resolves a block item, which can be either a declaration or a statement.

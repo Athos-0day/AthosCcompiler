@@ -123,27 +123,72 @@ std::unique_ptr<BlockItem> Parser::parseBlockItem() {
     }
 }
 
+//Parse ForInit
+std::unique_ptr<ForInit> Parser::parseForInit() {
+    log("Parsing for-init");
+
+    if (peek().token == Token::INT) {
+        // Case: declaration (e.g., int x = 5;)
+        advance();  // consume 'int'
+        expect(Token::IDENTIFIER, "Expected identifier in for-loop declaration");
+
+        std::string name = tokens[current - 1].word;
+
+        std::unique_ptr<Expression> init = nullptr;
+        if (match(Token::ASSIGN)) {
+            init = parseExpression(0);
+        }
+
+        expect(Token::SEMICOLON, "Expected ';' after for-loop declaration");
+
+        auto decl = std::make_unique<Declaration>(name, std::move(init));
+        return std::make_unique<ForInit>(std::move(decl));
+    } else {
+        // Case: optional expression (e.g., i = 0;)
+        std::unique_ptr<Expression> expr = nullptr;
+
+        if (peek().token != Token::SEMICOLON) {
+            expr = parseExpression(0);
+        }
+
+        expect(Token::SEMICOLON, "Expected ';' after for-loop init expression");
+
+        return std::make_unique<ForInit>(std::move(expr));
+    }
+}
+
+
 // Parse statement
 std::unique_ptr<Statement> Parser::parseStatement() {
     log("Parsing statement");
 
     if (match(Token::RETURN)) {
-        // return <expression> ;
         auto expr = parseExpression(0);
         expect(Token::SEMICOLON, "Expected ';' after return expression");
         log("Parsed return statement");
         return std::make_unique<Statement>(std::move(expr), StatementType::RETURN);
     }
 
+    if (match(Token::BREAK)) {
+        expect(Token::SEMICOLON, "Expected ';' after 'break'");
+        log("Parsed break statement");
+        return Statement::makeBreak();
+    }
+
+    if (match(Token::CONTINUE)) {
+        expect(Token::SEMICOLON, "Expected ';' after 'continue'");
+        log("Parsed continue statement");
+        return Statement::makeContinue();
+    }
+
     if (match(Token::IF)) {
-        // if ( <condition> ) <thenStmt> [else <elseStmt>]
         expect(Token::OPARENTHESIS, "Expected '(' after 'if'");
         auto condition = parseExpression(0);
         expect(Token::CPARENTHESIS, "Expected ')' after condition");
 
         auto thenStmt = parseStatement();
-
         std::unique_ptr<Statement> elseStmt = nullptr;
+
         if (match(Token::ELSE)) {
             elseStmt = parseStatement();
         }
@@ -156,21 +201,67 @@ std::unique_ptr<Statement> Parser::parseStatement() {
         );
     }
 
+    if (match(Token::WHILE)) {
+        expect(Token::OPARENTHESIS, "Expected '(' after 'while'");
+        auto condition = parseExpression(0);
+        expect(Token::CPARENTHESIS, "Expected ')' after while condition");
+
+        auto body = parseStatement();
+        log("Parsed while loop");
+        return std::make_unique<Statement>(std::move(condition), std::move(body),StatementType::WHILE);
+    }
+
+    if (match(Token::DO)) {
+        auto body = parseStatement();
+        expect(Token::WHILE, "Expected 'while' after 'do' body");
+        expect(Token::OPARENTHESIS, "Expected '(' after 'while'");
+        auto condition = parseExpression(0);
+        expect(Token::CPARENTHESIS, "Expected ')' after condition");
+        expect(Token::SEMICOLON, "Expected ';' after do-while loop");
+
+        log("Parsed do-while loop");
+        return std::make_unique<Statement>(std::move(condition),std::move(body),StatementType::DO_WHILE);
+    }
+
+    if (match(Token::FOR)) {
+        expect(Token::OPARENTHESIS, "Expected '(' after 'for'");
+        auto init = parseForInit();
+
+        std::unique_ptr<Expression> condition = nullptr;
+        if (!match(Token::SEMICOLON)) {
+            condition = parseExpression(0);
+            expect(Token::SEMICOLON, "Expected ';' after for-loop condition");
+        }
+
+        std::unique_ptr<Expression> post = nullptr;
+        if (peek().token != Token::CPARENTHESIS) {
+            post = parseExpression(0);
+        }
+
+        expect(Token::CPARENTHESIS, "Expected ')' after for-loop clauses");
+        auto body = parseStatement();
+
+        log("Parsed for loop");
+        return std::make_unique<Statement>(
+            std::move(init),
+            std::move(condition),
+            std::move(post),
+            std::move(body)
+        );
+    }
+
     if (match(Token::OBRACE)) {
-        // { <block-item>* }
         auto block = parseBlock();
         log("Parsed compound block statement");
         return std::make_unique<Statement>(std::move(block));
     }
 
     if (peek().token == Token::SEMICOLON) {
-        // ;
         advance();
         log("Parsed empty statement");
         return std::make_unique<Statement>(nullptr, StatementType::NULL_STMT);
     }
 
-    // <expression> ;
     auto expr = parseExpression(0);
     expect(Token::SEMICOLON, "Expected ';' after expression statement");
     log("Parsed expression statement");

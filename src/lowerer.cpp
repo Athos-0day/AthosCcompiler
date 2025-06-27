@@ -237,6 +237,89 @@ void Lowerer::lowerStatement(const Statement* stmt) {
         }
         case StatementType::COMPOUND: {
             lowerBlock(stmt->block.get());
+            break;
+        }
+        case StatementType::BREAK: {
+            std::string breakLabel = "break_" + stmt->label;
+            instructions.push_back(std::make_unique<tacky::Jump>(breakLabel));
+            break;
+        }
+        case StatementType::CONTINUE: {
+            std::string continueLabel = "continue_" + stmt->label;
+            instructions.push_back(std::make_unique<tacky::Jump>(continueLabel));
+            break;
+        }
+        case StatementType::DO_WHILE: {
+            std::string startLabel = "start_" + stmt->label;
+            std::string breakLabel = "break_" + stmt->label;
+            std::string continueLabel = "continue_" + stmt->label;
+
+            instructions.push_back(std::make_unique<tacky::Label>(startLabel));
+
+            lowerStatement(stmt->body.get());
+
+            instructions.push_back(std::make_unique<tacky::Label>(continueLabel));
+
+            auto condVal = lowerExpression(stmt->condition.get());
+
+            instructions.push_back(std::make_unique<tacky::JumpIfNotZero>(std::move(condVal),startLabel));
+
+            instructions.push_back(std::make_unique<tacky::Label>(breakLabel));
+
+            break;
+        }
+        case StatementType::WHILE: {
+            std::string breakLabel = "break_" + stmt->label;
+            std::string continueLabel = "continue_" + stmt->label;
+
+            instructions.push_back(std::make_unique<tacky::Label>(continueLabel));
+
+            auto condVal = lowerExpression(stmt->condition.get());
+
+            instructions.push_back(std::make_unique<tacky::JumpIfZero>(std::move(condVal),breakLabel));
+
+            lowerStatement(stmt->body.get());
+
+            instructions.push_back(std::make_unique<tacky::Jump>(continueLabel));
+
+            instructions.push_back(std::make_unique<tacky::Label>(breakLabel));
+
+            break;
+        }
+        case StatementType::FOR: {
+            std::string startLabel = "start_" + stmt->label;
+            std::string continueLabel = "continue_" + stmt->label;
+            std::string breakLabel = "break_" + stmt->label;
+
+            if (stmt->forInit) {
+                if (stmt->forInit->type == ForInitType::INIT_DECL) {
+                    BlockItem item(std::move(stmt->forInit->decl));
+                    lowerBlockItem(&item);
+                } else if (stmt->forInit->type == ForInitType::INIT_EXP) {
+                    lowerExpression(stmt->forInit->expr.get());
+                }
+            }
+
+            instructions.push_back(std::make_unique<tacky::Label>(startLabel));
+
+            if (stmt->condition) {
+                auto condVal = lowerExpression(stmt->condition.get());
+                instructions.push_back(std::make_unique<tacky::JumpIfZero>(std::move(condVal), breakLabel));
+            }
+            
+            lowerStatement(stmt->body.get());
+
+            instructions.push_back(std::make_unique<tacky::Label>(continueLabel));
+
+            if (stmt->postExpr) {
+                lowerExpression(stmt->postExpr.get());
+            }
+
+            instructions.push_back(std::make_unique<tacky::Jump>(startLabel));
+
+            instructions.push_back(std::make_unique<tacky::Label>(breakLabel));
+
+            break;
         }
         case StatementType::NULL_STMT:
             break;
